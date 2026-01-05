@@ -1,0 +1,49 @@
+.habitacion-form-container {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-radius: 24px;
+    padding: 30px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    max-width: 500px;
+    margin: 10px auto;
+}
+
+.form-title {
+    color: #0f172a;
+    font-weight: 800 !important;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 25px !important;
+    border-bottom: 3px solid #1e293b;
+    display: inline-block;
+}
+
+.input-field {
+    background-color: #f8fafc !important;
+    border-radius: 12px !important;
+}
+
+.submit-button {
+    background: #1e293b !important;
+    color: white !important;
+    padding: 14px !important;
+    font-size: 1rem !important;
+    border-radius: 14px !important;
+    margin-top: 15px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.submit-button:hover {
+    background: #334155 !important;
+    transform: translateY(-1px);
+}
+
+.price-display {
+    background: #e2e8f0;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    color: #1e293b;
+}

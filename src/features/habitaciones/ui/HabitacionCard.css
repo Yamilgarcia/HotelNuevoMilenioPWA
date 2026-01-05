@@ -1,0 +1,92 @@
+/* Contenedor principal de la cuadrícula */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 20px;
+  padding: 25px;
+}
+
+/* Estilo Glassmorphism para las tarjetas */
+.room-card {
+  aspect-ratio: 1 / 1;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px); /* Efecto cristal */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.room-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.4);
+}
+
+/* Colores traslúcidos según estado */
+.room-free { 
+    background: rgba(46, 204, 113, 0.25); 
+    box-shadow: inset 0 0 20px rgba(46, 204, 113, 0.2);
+}
+.room-occupied { 
+    background: rgba(231, 76, 60, 0.25); 
+    box-shadow: inset 0 0 20px rgba(231, 76, 60, 0.2);
+}
+.room-dirty { 
+    background: rgba(243, 156, 18, 0.25); 
+    box-shadow: inset 0 0 20px rgba(243, 156, 18, 0.2);
+}
+
+/* Detalles internos */
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.room-number {
+  font-size: 2rem;
+  font-weight: 900;
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.room-info {
+  margin-top: auto;
+}
+
+.room-type {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.room-price {
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.room-icons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 1.2rem;
+}
+
+/* Brillo de estado */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px currentColor;
+}
