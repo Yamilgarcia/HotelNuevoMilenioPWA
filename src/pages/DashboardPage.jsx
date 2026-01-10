@@ -16,10 +16,10 @@ export default function DashboardPage() {
   };
 
   return (
-    <Box sx={{ flexGrow: 1, p: 2 }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'white', textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-        Estado del Hotel
-      </Typography>
+    <Box sx={{ flexGrow: 1, p: 3, backgroundColor: '#f1f5f9', minHeight: '100vh' }}>
+    <Typography variant="h4" sx={{ mb: 4, fontWeight: 800, color: '#1e293b' }}>
+      Estado del Hotel
+    </Typography>
 
       <div className="dashboard-grid">
         {habitacionesVisibles.length === 0 ? (

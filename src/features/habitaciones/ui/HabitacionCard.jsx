@@ -7,7 +7,6 @@ import BedIcon from '@mui/icons-material/Bed';
 
 export const HabitacionCard = ({ hab, onClick }) => {
   
-  // Lógica para mostrar iconos según las amenidades guardadas
   const renderIcons = () => {
     const text = hab.amenidades?.toLowerCase() || "";
     return (
@@ -22,6 +21,7 @@ export const HabitacionCard = ({ hab, onClick }) => {
 
   const getStatusClass = () => {
     if (!hab.activo) return 'room-inactive';
+    // Normalizar a minúsculas para el CSS
     switch (hab.estado) {
       case 'Ocupada': return 'room-occupied';
       case 'Sucia': return 'room-dirty';
@@ -34,8 +34,7 @@ export const HabitacionCard = ({ hab, onClick }) => {
       <div className="room-header">
         <p className="room-number">#{hab.numero}</p>
         <div className="status-dot" style={{ 
-          backgroundColor: hab.estado === 'Libre' ? '#2ecc71' : hab.estado === 'Ocupada' ? '#e74c3c' : '#f39c12',
-          color: hab.estado === 'Libre' ? '#2ecc71' : hab.estado === 'Ocupada' ? '#e74c3c' : '#f39c12'
+          backgroundColor: hab.estado === 'Libre' ? '#2ecc71' : hab.estado === 'Ocupada' ? '#e74c3c' : '#f39c12'
         }}></div>
       </div>
 
