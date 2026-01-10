@@ -1,76 +1,62 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BrowserPDF417Reader } from '@zxing/browser';
-import { Box, Typography, IconButton, Select, MenuItem, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import './CedulaScanner.css';
+import './CedulaScanner.css'; // Asegúrate de que el CSS esté creado (abajo te lo repito por si acaso)
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
     const videoRef = useRef(null);
-    const controlsRef = useRef(null); // AQUÍ guardaremos el control para detener la cámara
+    const controlsRef = useRef(null);
     const [loading, setLoading] = useState(true);
-    const [devices, setDevices] = useState([]);
-    const [selectedDeviceId, setSelectedDeviceId] = useState('');
-    const [reader] = useState(new BrowserPDF417Reader()); // Instancia única del lector
 
-    // 1. OBTENER CÁMARAS AL INICIAR
     useEffect(() => {
-        BrowserPDF417Reader.listVideoInputDevices()
-            .then((videoInputDevices) => {
-                setDevices(videoInputDevices);
-                if (videoInputDevices.length > 0) {
-                    // Buscar cámara trasera por nombre (back, trasera, environment, 0)
-                    const backCam = videoInputDevices.find(d => 
-                        d.label.toLowerCase().includes('back') || 
-                        d.label.toLowerCase().includes('trasera') || 
-                        d.label.toLowerCase().includes('0')
-                    );
-                    // Si encuentra trasera usa esa, si no la última de la lista
-                    const defaultId = backCam ? backCam.deviceId : videoInputDevices[videoInputDevices.length - 1].deviceId;
-                    setSelectedDeviceId(defaultId);
-                } else {
-                    setLoading(false);
-                    alert("No se detectaron cámaras.");
-                }
-            })
-            .catch((err) => {
-                console.error("Error listando cámaras:", err);
-                setLoading(false);
-            });
+        const reader = new BrowserPDF417Reader();
+        let mounted = true;
 
-        // LIMPIEZA AL SALIR (Desmontar componente)
-        return () => {
-            if (controlsRef.current) {
-                controlsRef.current.stop(); // Detener cámara correctamente
-                controlsRef.current = null;
-            }
-        };
-    }, []);
-
-    // 2. INICIAR/CAMBIAR CÁMARA
-    useEffect(() => {
-        if (!selectedDeviceId) return;
-
-        const startScan = async () => {
-            setLoading(true);
-            
-            // Si ya hay una cámara corriendo, detenerla primero
-            if (controlsRef.current) {
-                controlsRef.current.stop();
-                controlsRef.current = null;
-            }
-
+        const iniciarScanner = async () => {
             try {
-                // Iniciar escaneo en el elemento <video>
+                // 1. Obtener todas las cámaras
+                const devices = await BrowserPDF417Reader.listVideoInputDevices();
+                
+                // 2. Lógica automática para buscar la "Trasera Definitiva" (No la Angular)
+                // Filtramos las que son traseras
+                const backCameras = devices.filter(d => 
+                    d.label.toLowerCase().includes('back') || 
+                    d.label.toLowerCase().includes('trasera') ||
+                    d.label.toLowerCase().includes('environment') ||
+                    d.label.toLowerCase().includes('0')
+                );
+
+                let selectedDeviceId;
+
+                if (backCameras.length > 0) {
+                    // TRUCO PARA SAMSUNG S21/S22/S23:
+                    // A veces la cámara "0" o la primera es la Gran Angular (Wide).
+                    // Intentamos buscar una que NO diga "wide" o "ultra".
+                    const mainCamera = backCameras.find(d => 
+                        !d.label.toLowerCase().includes('wide') && 
+                        !d.label.toLowerCase().includes('ultra')
+                    );
+                    
+                    // Si encontramos una "Normal", usamos esa. Si no, usamos la última de la lista (suele ser la buena en Android)
+                    selectedDeviceId = mainCamera ? mainCamera.deviceId : backCameras[backCameras.length - 1].deviceId;
+                } else if (devices.length > 0) {
+                    // Si no hay etiquetas, usamos la última (fallback)
+                    selectedDeviceId = devices[devices.length - 1].deviceId;
+                }
+
+                if (!mounted) return;
+
+                // 3. Iniciar el escaneo con la cámara elegida
                 const controls = await reader.decodeFromVideoDevice(
                     selectedDeviceId,
                     videoRef.current,
                     (result, err) => {
                         if (result) {
                             const text = result.getText();
-                            // Filtro para evitar lecturas falsas cortas
+                            // Filtro de seguridad: solo aceptar si es largo (cédula)
                             if (text.length > 15) {
-                                // DETENER CAMARA ANTES DE SALIR
-                                controls.stop();
+                                controls.stop(); // Detener cámara
                                 controlsRef.current = null;
                                 onScanSuccess(text);
                             }
@@ -78,112 +64,72 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
                     }
                 );
                 
-                controlsRef.current = controls; // Guardamos el control para poder detenerlo luego
+                controlsRef.current = controls;
                 setLoading(false);
-                
-                // Intentar aplicar Zoom 2x nativo
-                aplicarZoom(videoRef.current);
 
             } catch (error) {
-                console.error("Error iniciando escáner:", error);
+                console.error("Error iniciando cámara:", error);
                 setLoading(false);
             }
         };
 
-        startScan();
+        iniciarScanner();
 
-    }, [selectedDeviceId, reader, onScanSuccess]);
-
-    // Función auxiliar para forzar Zoom (Truco para S21/S23)
-    const aplicarZoom = (videoElement) => {
-        try {
-            if (videoElement && videoElement.srcObject) {
-                const track = videoElement.srcObject.getVideoTracks()[0];
-                const capabilities = track.getCapabilities();
-                if (capabilities.zoom) {
-                    // Aplicar un zoom de 2.0x si el hardware lo permite
-                    track.applyConstraints({ advanced: [{ zoom: 2.0 }] });
-                }
+        return () => {
+            mounted = false;
+            if (controlsRef.current) {
+                controlsRef.current.stop();
+                controlsRef.current = null;
             }
-        } catch (e) {
-            console.log("Zoom no soportado en este navegador/lente", e);
-        }
-    };
+        };
+    }, [onScanSuccess]);
 
     return (
         <Box sx={{ 
-            position: 'relative', width: '100%', height: '500px', 
-            bgcolor: 'black', borderRadius: '16px', overflow: 'hidden', 
-            display: 'flex', flexDirection: 'column' 
+            position: 'relative', width: '100%', height: '400px', // Altura fija cómoda
+            bgcolor: 'black', borderRadius: '12px', overflow: 'hidden', 
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
         }}>
             
-            {/* VIDEO NATIVO */}
+            {/* VIDEO (Sin selectores, ocupa todo el fondo) */}
             <video 
                 ref={videoRef} 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 muted
             />
 
-            {/* INTERFAZ VISUAL */}
+            {/* INTERFAZ VISUAL LIMPIA */}
             {!loading && (
-                <>
-                    {/* Marco Rojo Láser */}
-                    <div className="scanner-overlay">
-                        <div className="scanner-box">
-                            <div className="scanner-line"></div>
-                        </div>
-                        <Typography variant="caption" className="scanner-text" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 0.5, borderRadius: 2 }}>
-                            Enfoca el cuadro denso
-                        </Typography>
+                <div className="scanner-overlay">
+                    {/* Caja de enfoque */}
+                    <div className="scanner-box">
+                        <div className="scanner-line"></div>
                     </div>
+                    
+                    <Typography variant="caption" className="scanner-text" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 0.5, borderRadius: 2, color: 'white' }}>
+                        Enfoca el cuadro denso trasero
+                    </Typography>
 
-                    {/* Botón Cerrar */}
-                    <IconButton 
+                    {/* Botón Cancelar abajo (Estilo simple como pediste) */}
+                    <Button 
                         onClick={() => {
                             if(controlsRef.current) controlsRef.current.stop();
                             onClose();
                         }}
-                        sx={{ position: 'absolute', top: 15, right: 15, color: 'white', bgcolor: 'rgba(255,50,50,0.8)', zIndex: 20 }}
+                        variant="contained" 
+                        color="error" 
+                        size="small"
+                        sx={{ position: 'absolute', bottom: 20, zIndex: 30 }}
                     >
-                        <CloseIcon />
-                    </IconButton>
-
-                    {/* Selector de Cámara Manual */}
-                    <Box sx={{ 
-                        position: 'absolute', bottom: 0, left: 0, width: '100%', 
-                        p: 2, zIndex: 20, 
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
-                        display: 'flex', flexDirection: 'column', gap: 1
-                    }}>
-                        <Typography variant="caption" sx={{ color: '#aaa', ml: 1 }}>Cámara:</Typography>
-                        
-                        <Select
-                            value={selectedDeviceId}
-                            onChange={(e) => setSelectedDeviceId(e.target.value)}
-                            variant="standard"
-                            disableUnderline
-                            sx={{ 
-                                color: 'white', 
-                                '.MuiSelect-icon': { color: 'white' },
-                                bgcolor: 'rgba(255,255,255,0.15)',
-                                px: 2, py: 0.5, borderRadius: 2,
-                                fontSize: '0.9rem'
-                            }}
-                        >
-                            {devices.map((device, index) => (
-                                <MenuItem key={device.deviceId} value={device.deviceId}>
-                                    {device.label || `Cámara ${index + 1}`}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </Box>
-                </>
+                        CANCELAR
+                    </Button>
+                </div>
             )}
 
             {loading && (
-                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                <Box sx={{ position: 'absolute', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <CircularProgress color="success" />
-                    <Typography color="white" mt={2}>Iniciando cámara...</Typography>
+                    <Typography color="white" mt={2} variant="caption">Cargando cámara...</Typography>
                 </Box>
             )}
         </Box>
