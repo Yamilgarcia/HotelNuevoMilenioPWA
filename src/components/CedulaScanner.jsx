@@ -1,55 +1,59 @@
-import React, { useEffect } from 'react';
-// 1. IMPORTANTE: Agregamos "Html5QrcodeSupportedFormats" aquí
-import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import React, { useEffect, useState } from 'react';
+import { Html5QrcodeScanner } from "html5-qrcode";
 import { Box, Typography, Button } from '@mui/material';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  
+  const [mensaje, setMensaje] = useState("Buscando código...");
+
   useEffect(() => {
-    // Configuración del escáner
     const scanner = new Html5QrcodeScanner(
       "reader", 
       { 
         fps: 10, 
-        qrbox: { width: 300, height: 250 }, // Un poco más ancho para el PDF417
+        qrbox: { width: 280, height: 280 }, // Cuadro grande
         aspectRatio: 1.0,
-        disableFlip: false,
-        // 2. MAGIA: Esto obliga al escáner a buscar SOLO el cuadro grande
-        formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417 ] 
+        disableFlip: false, 
+        // QUITAMOS la restricción de formatos para que detecte mejor
       },
-      /* verbose= */ false
+      false
     );
 
     const onDetect = (decodedText) => {
-      // Validación extra: Una cédula tiene muchos datos.
-      // Si lee algo corto (como AHF98052), lo ignoramos.
-      if (decodedText.length > 20) {
+      // ESTRATEGIA INTELIGENTE:
+      // El código de barras pequeño tiene como 8-10 caracteres (ej: AHF98052)
+      // El cuadro grande PDF417 tiene CIENTOS de caracteres.
+      
+      if (decodedText.length < 15) {
+        // Es el código de barras pequeño o basura -> Lo ignoramos
+        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro grande.");
+        console.log("Ignorado (muy corto):", decodedText);
+      } else {
+        // ¡Es el grande!
         scanner.clear();
         onScanSuccess(decodedText);
-      } else {
-        console.log("Lectura ignorada (muy corta):", decodedText);
       }
     };
 
     const onError = (err) => {
-      // Ignoramos errores
+      // Ignoramos errores de no detección
     };
 
     scanner.render(onDetect, onError);
 
     return () => {
-      scanner.clear().catch(error => console.error("Error al limpiar scanner", error));
+      scanner.clear().catch(err => console.error("Error limpieza", err));
     };
   }, [onScanSuccess]);
 
   return (
     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
       <Typography variant="h6" sx={{ mb: 1 }}>
-        Escanea el cuadro grande de puntos
+        Escaneando Cédula
       </Typography>
       
-      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24' }}>
-        ⚠️ Si la cámara detecta el código pequeño, tápalo con tu dedo.
+      {/* Mensaje dinámico para ayudar al usuario */}
+      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
+        {mensaje}
       </Typography>
       
       <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>

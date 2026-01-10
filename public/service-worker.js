@@ -1,12 +1,12 @@
 /* service-worker.js
-   Mandaditos - SW con caching correcto para evitar duplicados en reconexión
+
    - Cachea sólo GET de assets estáticos.
    - Nunca cachea /api ni POST/PUT/DELETE.
    - Navegaciones (HTML): network-first con fallback a /index.html.
    - Assets: stale-while-revalidate (rápido + se actualiza en segundo plano).
 */
 
-const CACHE_NAME = "Hotel-cache-v5";
+const CACHE_NAME = "Hotel-cache-v6";
 
 // Archivos base mínimos para que la app arranque offline
 const CORE_ASSETS = [
