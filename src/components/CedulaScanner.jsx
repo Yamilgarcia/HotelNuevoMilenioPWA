@@ -1,96 +1,112 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { Box, Typography, Button, CircularProgress, IconButton } from '@mui/material';
+import { Html5Qrcode } from "html5-qrcode";
+import { Box, Typography, Button, IconButton, Select, MenuItem } from '@mui/material';
 import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
 import CloseIcon from '@mui/icons-material/Close';
+import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
   const [cameras, setCameras] = useState([]);
-  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const scannerRef = useRef(null); // Referencia al objeto Html5Qrcode
+  const scannerRef = useRef(null);
 
   useEffect(() => {
-    // 1. OBTENER CÁMARAS DISPONIBLES AL INICIAR
+    // 1. INICIAR: Pedir permisos y listar cámaras
     Html5Qrcode.getCameras().then(devices => {
       if (devices && devices.length) {
-        // Filtramos solo las traseras (aunque a veces no traen etiqueta, tomamos todas por si acaso)
-        // En Samsung S21, suelen haber varias 'back'.
         setCameras(devices);
         
-        // Intentamos arrancar con la última de la lista (suele ser la principal en algunos Android)
-        // O arrancamos con la 0 y dejamos que el usuario cambie.
-        setCurrentCameraIndex(0);
-        startScanner(devices[0].id);
+        // TRUCO SAMSUNG: Normalmente la cámara "back 0" es la gran angular (mala)
+        // y la "back 1" es la principal (buena). Intentamos seleccionar la última.
+        const lastCamera = devices[devices.length - 1].id;
+        setSelectedCameraId(lastCamera);
+        startScanner(lastCamera);
       }
     }).catch(err => {
-      console.error("Error al listar cámaras", err);
-      alert("No se pudieron detectar cámaras.");
+      console.error("Error cámaras", err);
+      alert("Error: No se detectaron cámaras.");
     });
 
-    // Limpieza al desmontar
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().then(() => {
-            scannerRef.current.clear();
-        }).catch(err => console.error("Error al detener", err));
-      }
-    };
+    return () => stopScanner();
   }, []);
 
-  const startScanner = (cameraId) => {
-    // Si ya hay uno corriendo, detenerlo primero
-    if (scannerRef.current && isScanning) {
-      scannerRef.current.stop().then(() => {
-        initNewScanner(cameraId);
-      });
-    } else {
-      initNewScanner(cameraId);
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch (err) {
+        console.log("Stop error", err);
+      }
     }
   };
 
-  const initNewScanner = (cameraId) => {
+  const startScanner = (cameraId) => {
+    // Si ya hay una instancia, la detenemos antes de arrancar la nueva
+    if (scannerRef.current) {
+        scannerRef.current.stop().then(() => {
+            scannerRef.current.clear();
+            initScanner(cameraId);
+        }).catch(() => initScanner(cameraId));
+    } else {
+        initScanner(cameraId);
+    }
+  };
+
+  const initScanner = (cameraId) => {
     const html5QrCode = new Html5Qrcode("reader");
     scannerRef.current = html5QrCode;
 
+    // CONFIGURACIÓN DE ORO (Copiada de la que te funcionaba)
     const config = { 
-      fps: 10, 
-      qrbox: { width: 300, height: 180 }, // Caja rectangular para cédula
-      aspectRatio: 1.0
+      fps: 10,
+      qrbox: { width: 300, height: 180 }, 
+      aspectRatio: 1.0,
+      // Desactivamos el "native detector" aquí porque en video a veces da problemas de foco
+      // y confiamos en la lectura óptica tradicional que es rápida en video.
+      disableFlip: false 
     };
 
     html5QrCode.start(
       cameraId, 
-      config,
+      {
+        // ESTO ES LO QUE ARREGLA EL ENFOQUE
+        focusMode: "continuous",       // Exige autoenfoque continuo
+        width: { min: 1024, ideal: 1280, max: 1920 }, // Exige resolución HD (activa lente principal)
+        height: { min: 576, ideal: 720, max: 1080 }
+      },
       (decodedText) => {
-        // ÉXITO
+        // Éxito
         if (decodedText.length > 15) {
-            html5QrCode.stop().then(() => {
-                onScanSuccess(decodedText);
-            });
+            // Reproducir sonido beep si quieres
+            stopScanner();
+            onScanSuccess(decodedText);
         }
       },
       (errorMessage) => {
-        // Error de lectura (frame vacío), ignorar
+        // Ignorar errores por frame
       }
     ).then(() => {
       setIsScanning(true);
     }).catch(err => {
-      console.error("Error al iniciar cámara", err);
+      console.error("Error start", err);
     });
   };
 
-  const switchCamera = () => {
-    if (cameras.length <= 1) return;
+  const handleCameraChange = (event) => {
+    const newId = event.target.value;
+    setSelectedCameraId(newId);
+    startScanner(newId);
+  };
 
-    // Calcular siguiente índice
-    const nextIndex = (currentCameraIndex + 1) % cameras.length;
-    setCurrentCameraIndex(nextIndex);
-    
-    // Reiniciar con la nueva cámara
-    const nextCameraId = cameras[nextIndex].id;
-    console.log("Cambiando a cámara:", cameras[nextIndex].label);
-    startScanner(nextCameraId);
+  const cycleCamera = () => {
+     if (cameras.length === 0) return;
+     const currentIndex = cameras.findIndex(c => c.id === selectedCameraId);
+     const nextIndex = (currentIndex + 1) % cameras.length;
+     const nextId = cameras[nextIndex].id;
+     setSelectedCameraId(nextId);
+     startScanner(nextId);
   };
 
   return (
@@ -102,7 +118,7 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
       overflow: 'hidden',
       maxWidth: '500px',
       margin: '0 auto',
-      height: '500px',
+      height: '550px', // Altura fija
       display: 'flex', 
       flexDirection: 'column'
     }}>
@@ -116,30 +132,59 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
       </IconButton>
 
       {/* ÁREA DE VIDEO */}
-      <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
+      <Box sx={{ flexGrow: 1, position: 'relative', bgcolor: '#000' }}>
          <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+         
+         {/* Guía visual */}
+         <Box sx={{ 
+             position: 'absolute', top: '50%', left: '50%', 
+             transform: 'translate(-50%, -50%)', 
+             width: '280px', height: '180px', 
+             border: '2px solid rgba(74, 222, 128, 0.5)', 
+             borderRadius: 2,
+             boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', // Oscurece el resto
+             zIndex: 1,
+             pointerEvents: 'none'
+         }} />
+         
+         <Typography variant="caption" sx={{ 
+             position: 'absolute', bottom: 20, width: '100%', textAlign: 'center', 
+             color: '#fff', textShadow: '0 1px 3px black', zIndex: 5 
+         }}>
+             Mueve el celular adelante/atrás para enfocar
+         </Typography>
       </Box>
 
       {/* CONTROLES INFERIORES */}
-      <Box sx={{ p: 2, bgcolor: '#1e293b', textAlign: 'center' }}>
-        <Typography variant="body2" sx={{ mb: 2, color: '#94a3b8' }}>
-            Cámara actual: {cameras[currentCameraIndex]?.label || `Cámara ${currentCameraIndex + 1}`}
-        </Typography>
+      <Box sx={{ p: 2, bgcolor: '#1e293b', textAlign: 'center', zIndex: 5 }}>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 2 }}>
+            <CenterFocusStrongIcon sx={{ color: '#4ade80' }} />
+            <Select
+                value={selectedCameraId}
+                onChange={handleCameraChange}
+                variant="standard"
+                disableUnderline
+                sx={{ color: 'white', fontSize: '0.9rem', maxWidth: '200px' }}
+            >
+                {cameras.map((cam, idx) => (
+                    <MenuItem key={cam.id} value={cam.id}>
+                        {cam.label || `Cámara ${idx + 1}`}
+                    </MenuItem>
+                ))}
+            </Select>
+        </Box>
 
         <Button 
             variant="contained" 
             color="warning" 
             startIcon={<CameraswitchIcon />}
-            onClick={switchCamera}
+            onClick={cycleCamera}
             fullWidth
-            sx={{ py: 1.5, fontWeight: 'bold', fontSize: '1rem' }}
+            sx={{ py: 1.5, fontWeight: 'bold', borderRadius: 3 }}
         >
-            CAMBIAR LENTE / CÁMARA
+            CAMBIAR CÁMARA
         </Button>
-        
-        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#aaa' }}>
-            Si se ve borroso o lejos, toca el botón para probar la siguiente cámara.
-        </Typography>
       </Box>
     </Box>
   );
