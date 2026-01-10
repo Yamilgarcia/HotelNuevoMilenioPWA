@@ -3,39 +3,39 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 import { Box, Typography, Button } from '@mui/material';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const [mensaje, setMensaje] = useState("Buscando código...");
+  const [mensaje, setMensaje] = useState("Iniciando cámara HD...");
 
   useEffect(() => {
     const scanner = new Html5QrcodeScanner(
       "reader", 
       { 
         fps: 10, 
-        qrbox: { width: 280, height: 280 }, // Cuadro grande
+        qrbox: { width: 300, height: 250 }, 
         aspectRatio: 1.0,
         disableFlip: false, 
-        // QUITAMOS la restricción de formatos para que detecte mejor
+        // ⚠️ ESTO ES LO NUEVO: FORZAMOS CALIDAD HD
+        videoConstraints: {
+            facingMode: "environment", // Cámara trasera
+            width: { min: 1024, ideal: 1280, max: 1920 }, // Resolución Alta
+            height: { min: 576, ideal: 720, max: 1080 },
+            focusMode: "continuous" // Autoenfoque (si el navegador lo permite)
+        }
       },
       false
     );
 
     const onDetect = (decodedText) => {
-      // ESTRATEGIA INTELIGENTE:
-      // El código de barras pequeño tiene como 8-10 caracteres (ej: AHF98052)
-      // El cuadro grande PDF417 tiene CIENTOS de caracteres.
-      
+      // Ignorar códigos cortos (barras pequeñas)
       if (decodedText.length < 15) {
-        // Es el código de barras pequeño o basura -> Lo ignoramos
-        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro grande.");
-        console.log("Ignorado (muy corto):", decodedText);
+        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro denso.");
       } else {
-        // ¡Es el grande!
         scanner.clear();
         onScanSuccess(decodedText);
       }
     };
 
     const onError = (err) => {
-      // Ignoramos errores de no detección
+      // Sin acción en error
     };
 
     scanner.render(onDetect, onError);
@@ -48,14 +48,18 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   return (
     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
       <Typography variant="h6" sx={{ mb: 1 }}>
-        Escaneando Cédula
+        Escaneando Cédula (HD)
       </Typography>
       
-      {/* Mensaje dinámico para ayudar al usuario */}
       <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
         {mensaje}
       </Typography>
       
+      {/* Mensaje de ayuda técnica */}
+      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: '#aaa', fontSize: '0.7rem' }}>
+        Tip: Mueve el celular adelante y atrás lentamente para enfocar.
+      </Typography>
+
       <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
       
       <Button onClick={onClose} variant="outlined" color="error" sx={{ mt: 2 }}>
