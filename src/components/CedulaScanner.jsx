@@ -10,7 +10,7 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
       "reader", 
       { 
         fps: 10, // Frames por segundo (entre más bajo, menos consume batería)
-        qrbox: { width: 300, height: 150 }, // Rectángulo de enfoque (apaisado para cédulas)
+        qrbox: { width: 250, height: 250 }, // Rectángulo de enfoque (apaisado para cédulas)
         aspectRatio: 1.0,
         disableFlip: false, 
       },
