@@ -1,70 +1,146 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner } from "html5-qrcode";
-import { Box, Typography, Button } from '@mui/material';
+import React, { useEffect, useState, useRef } from 'react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Box, Typography, Button, CircularProgress, IconButton } from '@mui/material';
+import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
+import CloseIcon from '@mui/icons-material/Close';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const [mensaje, setMensaje] = useState("Iniciando cámara HD...");
+  const [cameras, setCameras] = useState([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
+  const scannerRef = useRef(null); // Referencia al objeto Html5Qrcode
 
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "reader", 
-      { 
-        fps: 10, 
-        qrbox: { width: 300, height: 250 }, 
-        aspectRatio: 1.0,
-        disableFlip: false, 
-        // ⚠️ ESTO ES LO NUEVO: FORZAMOS CALIDAD HD
-        videoConstraints: {
-            facingMode: "environment", // Cámara trasera
-            width: { min: 1024, ideal: 1280, max: 1920 }, // Resolución Alta
-            height: { min: 576, ideal: 720, max: 1080 },
-            focusMode: "continuous" // Autoenfoque (si el navegador lo permite)
-        }
-      },
-      false
-    );
+    // 1. OBTENER CÁMARAS DISPONIBLES AL INICIAR
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        // Filtramos solo las traseras (aunque a veces no traen etiqueta, tomamos todas por si acaso)
+        // En Samsung S21, suelen haber varias 'back'.
+        setCameras(devices);
+        
+        // Intentamos arrancar con la última de la lista (suele ser la principal en algunos Android)
+        // O arrancamos con la 0 y dejamos que el usuario cambie.
+        setCurrentCameraIndex(0);
+        startScanner(devices[0].id);
+      }
+    }).catch(err => {
+      console.error("Error al listar cámaras", err);
+      alert("No se pudieron detectar cámaras.");
+    });
 
-    const onDetect = (decodedText) => {
-      // Ignorar códigos cortos (barras pequeñas)
-      if (decodedText.length < 15) {
-        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro denso.");
-      } else {
-        scanner.clear();
-        onScanSuccess(decodedText);
+    // Limpieza al desmontar
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().then(() => {
+            scannerRef.current.clear();
+        }).catch(err => console.error("Error al detener", err));
       }
     };
+  }, []);
 
-    const onError = (err) => {
-      // Sin acción en error
+  const startScanner = (cameraId) => {
+    // Si ya hay uno corriendo, detenerlo primero
+    if (scannerRef.current && isScanning) {
+      scannerRef.current.stop().then(() => {
+        initNewScanner(cameraId);
+      });
+    } else {
+      initNewScanner(cameraId);
+    }
+  };
+
+  const initNewScanner = (cameraId) => {
+    const html5QrCode = new Html5Qrcode("reader");
+    scannerRef.current = html5QrCode;
+
+    const config = { 
+      fps: 10, 
+      qrbox: { width: 300, height: 180 }, // Caja rectangular para cédula
+      aspectRatio: 1.0
     };
 
-    scanner.render(onDetect, onError);
+    html5QrCode.start(
+      cameraId, 
+      config,
+      (decodedText) => {
+        // ÉXITO
+        if (decodedText.length > 15) {
+            html5QrCode.stop().then(() => {
+                onScanSuccess(decodedText);
+            });
+        }
+      },
+      (errorMessage) => {
+        // Error de lectura (frame vacío), ignorar
+      }
+    ).then(() => {
+      setIsScanning(true);
+    }).catch(err => {
+      console.error("Error al iniciar cámara", err);
+    });
+  };
 
-    return () => {
-      scanner.clear().catch(err => console.error("Error limpieza", err));
-    };
-  }, [onScanSuccess]);
+  const switchCamera = () => {
+    if (cameras.length <= 1) return;
+
+    // Calcular siguiente índice
+    const nextIndex = (currentCameraIndex + 1) % cameras.length;
+    setCurrentCameraIndex(nextIndex);
+    
+    // Reiniciar con la nueva cámara
+    const nextCameraId = cameras[nextIndex].id;
+    console.log("Cambiando a cámara:", cameras[nextIndex].label);
+    startScanner(nextCameraId);
+  };
 
   return (
-    <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Escaneando Cédula (HD)
-      </Typography>
+    <Box sx={{ 
+      position: 'relative', 
+      bgcolor: 'black', 
+      color: 'white', 
+      borderRadius: 4, 
+      overflow: 'hidden',
+      maxWidth: '500px',
+      margin: '0 auto',
+      height: '500px',
+      display: 'flex', 
+      flexDirection: 'column'
+    }}>
       
-      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
-        {mensaje}
-      </Typography>
-      
-      {/* Mensaje de ayuda técnica */}
-      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: '#aaa', fontSize: '0.7rem' }}>
-        Tip: Mueve el celular adelante y atrás lentamente para enfocar.
-      </Typography>
+      {/* Botón Cerrar */}
+      <IconButton 
+        onClick={onClose} 
+        sx={{ position: 'absolute', top: 10, right: 10, zIndex: 10, color: 'white', bgcolor: 'rgba(0,0,0,0.5)' }}
+      >
+        <CloseIcon />
+      </IconButton>
 
-      <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
-      
-      <Button onClick={onClose} variant="outlined" color="error" sx={{ mt: 2 }}>
-        Cancelar
-      </Button>
+      {/* ÁREA DE VIDEO */}
+      <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000' }}>
+         <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+      </Box>
+
+      {/* CONTROLES INFERIORES */}
+      <Box sx={{ p: 2, bgcolor: '#1e293b', textAlign: 'center' }}>
+        <Typography variant="body2" sx={{ mb: 2, color: '#94a3b8' }}>
+            Cámara actual: {cameras[currentCameraIndex]?.label || `Cámara ${currentCameraIndex + 1}`}
+        </Typography>
+
+        <Button 
+            variant="contained" 
+            color="warning" 
+            startIcon={<CameraswitchIcon />}
+            onClick={switchCamera}
+            fullWidth
+            sx={{ py: 1.5, fontWeight: 'bold', fontSize: '1rem' }}
+        >
+            CAMBIAR LENTE / CÁMARA
+        </Button>
+        
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#aaa' }}>
+            Si se ve borroso o lejos, toca el botón para probar la siguiente cámara.
+        </Typography>
+      </Box>
     </Box>
   );
 }
