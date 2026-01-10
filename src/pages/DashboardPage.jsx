@@ -1,55 +1,116 @@
-import React from 'react';
-import { Box, Typography, Grid } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, TextField, InputAdornment } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { useHabitaciones } from '../features/habitaciones/logic/useHabitaciones';
+import { useRecepcion } from '../features/recepcion/logic/useRecepcion'; 
 import { HabitacionCard } from '../features/habitaciones/ui/HabitacionCard';
-import '../features/habitaciones/ui/HabitacionCard.css'; // Importamos el grid
+import '../features/habitaciones/ui/HabitacionCard.css';
+
+// Importamos los Modales
+import CheckInModal from '../features/recepcion/ui/CheckInModal';
+import RoomOptionsModal from '../features/recepcion/ui/RoomOptionsModal';
 
 export default function DashboardPage() {
   const { habitaciones } = useHabitaciones();
+  const { realizarCheckIn, realizarCheckOut, cambiarEstado } = useRecepcion();
+  
+  const [busqueda, setBusqueda] = useState("");
+  
+  // Estados para controlar los modales
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [optionsOpen, setOptionsOpen] = useState(false); // Modal de Botones (Opciones)
+  const [checkInOpen, setCheckInOpen] = useState(false); // Modal de Formulario (Check-in)
 
-  // Filtrar solo las habitaciones que no están inhabilitadas para la vista operativa
-  const habitacionesVisibles = habitaciones.filter(h => h.activo !== false);
+  // Filtro del buscador
+  const habitacionesFiltradas = habitaciones.filter(hab => {
+    if (hab.activo === false) return false;
+    const texto = busqueda.toLowerCase();
+    return hab.numero.toString().includes(texto) || hab.categoria?.toLowerCase().includes(texto);
+  });
 
+  // 1. Al dar click en una tarjeta, ABRIMOS EL MENÚ DE OPCIONES
   const handleRoomClick = (hab) => {
-    console.log("Gestionar habitación:", hab.numero);
-    // Aquí es donde más adelante abriremos el check-in o check-out
+    setSelectedRoom(hab);
+    setOptionsOpen(true); 
+  };
+
+  // 2. Manejador de las acciones del Menú de Opciones
+  const handleAction = async (actionKey, habitacion) => {
+    setOptionsOpen(false); // Cerramos el menú de botones primero
+
+    switch (actionKey) {
+      case 'CHECKIN':
+        setCheckInOpen(true); // Abrimos formulario de ingreso
+        break;
+      
+      case 'CHECKOUT':
+        // IMPORTANTE: Aquí cambiaremos esto pronto por un Modal de Salida real
+        if(window.confirm(`¿Confirmar salida de la habitación ${habitacion.numero}? Se marcará como SUCIA.`)) {
+            await realizarCheckOut(habitacion.id);
+        }
+        break;
+
+      case 'MARK_DIRTY':
+        await cambiarEstado(habitacion.id, 'Sucia');
+        break;
+
+      case 'FINISH_CLEANING':
+        await cambiarEstado(habitacion.id, 'Libre');
+        break;
+
+      case 'MARK_MAINTENANCE':
+        await cambiarEstado(habitacion.id, 'Mantenimiento');
+        break;
+
+      case 'ADD_CONSUMPTION':
+        alert("Próximamente: Módulo de Tiendita/Consumo");
+        break;
+        
+      default:
+        console.log("Acción no implementada:", actionKey);
+    }
+  };
+
+  // 3. Confirmar Check-in desde el modal
+  const handleConfirmCheckIn = async (habitacionId, datos, precio) => {
+    await realizarCheckIn(habitacionId, datos, precio);
   };
 
   return (
-    <Box sx={{ flexGrow: 1, p: 3, backgroundColor: '#f1f5f9', minHeight: '100vh' }}>
-    <Typography variant="h4" sx={{ mb: 4, fontWeight: 800, color: '#1e293b' }}>
-      Estado del Hotel
-    </Typography>
+    <Box sx={{ flexGrow: 1, p: 3, backgroundColor: '#1e293b', minHeight: '100vh' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center' }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#fff' }}>Panel de Recepción</Typography>
+        <TextField
+          placeholder="Buscar..."
+          size="small"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          sx={{ bgcolor: '#334155', borderRadius: 2, input: { color: 'white' } }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#94a3b8' }}/></InputAdornment> }}
+        />
+      </Box>
 
       <div className="dashboard-grid">
-        {habitacionesVisibles.length === 0 ? (
-          <Typography color="white">No hay habitaciones registradas. Ve a "Registrar Hab" para comenzar.</Typography>
-        ) : (
-          habitacionesVisibles.map((hab) => (
-            <HabitacionCard 
-              key={hab.id} 
-              hab={hab} 
-              onClick={handleRoomClick} 
-            />
-          ))
-        )}
+        {habitacionesFiltradas.map((hab) => (
+            <HabitacionCard key={hab.id} hab={hab} onClick={handleRoomClick} />
+        ))}
       </div>
 
-      {/* Leyenda de colores rápida */}
-      <Box sx={{ mt: 5, display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap', bgcolor: 'rgba(255,255,255,0.8)', p: 2, borderRadius: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ width: 15, height: 15, bgcolor: '#2ecc71', borderRadius: '50%' }} />
-          <Typography variant="caption">Libre</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ width: 15, height: 15, bgcolor: '#e74c3c', borderRadius: '50%' }} />
-          <Typography variant="caption">Ocupada</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ width: 15, height: 15, bgcolor: '#f39c12', borderRadius: '50%' }} />
-          <Typography variant="caption">Sucia</Typography>
-        </Box>
-      </Box>
+      {/* MODAL PRINCIPAL DE OPCIONES (Botones grandes) */}
+      <RoomOptionsModal 
+        open={optionsOpen}
+        onClose={() => setOptionsOpen(false)}
+        habitacion={selectedRoom}
+        onAction={handleAction}
+      />
+
+      {/* MODAL SECUNDARIO (Formulario Check-in) */}
+      <CheckInModal 
+        open={checkInOpen} 
+        onClose={() => setCheckInOpen(false)} 
+        habitacion={selectedRoom}
+        onConfirm={handleConfirmCheckIn}
+      />
     </Box>
   );
-}
+}   
