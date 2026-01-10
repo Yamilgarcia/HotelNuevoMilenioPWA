@@ -11,34 +11,49 @@ export default function AppLayout() {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        minHeight: "100vh",
         backgroundImage: "url('/gohan.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
-        position: 'relative'
+        position: "relative",
       }}
     >
-
-
-
-      <Box sx={{ relative: true, zIndex: 10, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <Box
+        sx={{
+          relative: true,
+          zIndex: 10,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+        }}
+      >
         {/* Header con AppBar para mejor estructura */}
-        <AppBar position="sticky" sx={{ bgcolor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(10px)', color: '#1e293b' }}>
-          <Toolbar sx={{ justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton 
-                onClick={() => setMenuOpen(true)} 
-                sx={{ mr: 2, color: '#1e293b' }}
+        <AppBar
+          position="sticky"
+          sx={{
+            bgcolor: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(10px)",
+            color: "#1e293b",
+          }}
+        >
+          <Toolbar sx={{ justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <IconButton
+                onClick={() => setMenuOpen(true)}
+                sx={{ mr: 2, color: "#1e293b" }}
                 size="large" // Botón más grande
               >
                 <MenuIcon fontSize="large" />
               </IconButton>
-              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 800, letterSpacing: -0.5 }}
+              >
                 HOTEL NUEVO MILENIO
               </Typography>
             </Box>
-            
+
             <InstallPWAButton />
           </Toolbar>
         </AppBar>
