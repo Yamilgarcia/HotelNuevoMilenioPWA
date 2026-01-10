@@ -79,3 +79,13 @@
     padding: 4px 12px;
     border-radius: 20px;
 }
+
+/* src/components/CedulaScanner.css */
+/* ... (MANTÉN TODO LO QUE TE DI ANTES) ... */
+
+/* AGREGAR ESTO AL FINAL: */
+#reader video {
+    object-fit: cover; /* Esto es clave para que no se vea estirado */
+    width: 100% !important;
+    height: 100% !important;
+}
