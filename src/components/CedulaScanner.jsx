@@ -1,137 +1,126 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BrowserPDF417Reader } from '@zxing/browser';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import './CedulaScanner.css'; // Asegúrate de que el CSS esté creado (abajo te lo repito por si acaso)
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-    const videoRef = useRef(null);
-    const controlsRef = useRef(null);
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
-    useEffect(() => {
-        const reader = new BrowserPDF417Reader();
-        let mounted = true;
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-        const iniciarScanner = async () => {
-            try {
-                // 1. Obtener todas las cámaras
-                const devices = await BrowserPDF417Reader.listVideoInputDevices();
-                
-                // 2. Lógica automática para buscar la "Trasera Definitiva" (No la Angular)
-                // Filtramos las que son traseras
-                const backCameras = devices.filter(d => 
-                    d.label.toLowerCase().includes('back') || 
-                    d.label.toLowerCase().includes('trasera') ||
-                    d.label.toLowerCase().includes('environment') ||
-                    d.label.toLowerCase().includes('0')
-                );
+    setLoading(true);
 
-                let selectedDeviceId;
+    try {
+      // 1. Crear URL temporal de la imagen
+      const imageUrl = URL.createObjectURL(file);
+      
+      // 2. Usar el lector para analizar la FOTO estática
+      const reader = new BrowserPDF417Reader();
+      
+      // Intentamos leer el código de la imagen
+      const result = await reader.decodeFromImageUrl(imageUrl);
+      
+      if (result) {
+        const text = result.getText();
+        if (text.length > 15) {
+             onScanSuccess(text); // ¡Éxito!
+        } else {
+             alert("Código ilegible o muy corto. Intenta tomar la foto más cerca.");
+             setLoading(false);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("No se encontró el código PDF417 en la foto.\n\nTips:\n1. Usa FLASH\n2. Enfoca bien el cuadro denso\n3. Que la foto no salga borrosa");
+      setLoading(false);
+    }
+  };
 
-                if (backCameras.length > 0) {
-                    // TRUCO PARA SAMSUNG S21/S22/S23:
-                    // A veces la cámara "0" o la primera es la Gran Angular (Wide).
-                    // Intentamos buscar una que NO diga "wide" o "ultra".
-                    const mainCamera = backCameras.find(d => 
-                        !d.label.toLowerCase().includes('wide') && 
-                        !d.label.toLowerCase().includes('ultra')
-                    );
-                    
-                    // Si encontramos una "Normal", usamos esa. Si no, usamos la última de la lista (suele ser la buena en Android)
-                    selectedDeviceId = mainCamera ? mainCamera.deviceId : backCameras[backCameras.length - 1].deviceId;
-                } else if (devices.length > 0) {
-                    // Si no hay etiquetas, usamos la última (fallback)
-                    selectedDeviceId = devices[devices.length - 1].deviceId;
-                }
+  return (
+    <Box sx={{ 
+      textAlign: 'center', p: 3, bgcolor: '#1e293b', color: 'white', borderRadius: 2,
+      display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center'
+    }}>
+      
+      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+        Escáner por Foto
+      </Typography>
 
-                if (!mounted) return;
+      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>
+        Usa la cámara de tu celular para tomar una foto clara de la parte trasera.
+      </Typography>
 
-                // 3. Iniciar el escaneo con la cámara elegida
-                const controls = await reader.decodeFromVideoDevice(
-                    selectedDeviceId,
-                    videoRef.current,
-                    (result, err) => {
-                        if (result) {
-                            const text = result.getText();
-                            // Filtro de seguridad: solo aceptar si es largo (cédula)
-                            if (text.length > 15) {
-                                controls.stop(); // Detener cámara
-                                controlsRef.current = null;
-                                onScanSuccess(text);
-                            }
-                        }
-                    }
-                );
-                
-                controlsRef.current = controls;
-                setLoading(false);
+      {/* Input oculto que activa la cámara nativa */}
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment" // Esto fuerza a abrir la cámara trasera
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
 
-            } catch (error) {
-                console.error("Error iniciando cámara:", error);
-                setLoading(false);
-            }
-        };
-
-        iniciarScanner();
-
-        return () => {
-            mounted = false;
-            if (controlsRef.current) {
-                controlsRef.current.stop();
-                controlsRef.current = null;
-            }
-        };
-    }, [onScanSuccess]);
-
-    return (
-        <Box sx={{ 
-            position: 'relative', width: '100%', height: '400px', // Altura fija cómoda
-            bgcolor: 'black', borderRadius: '12px', overflow: 'hidden', 
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-        }}>
-            
-            {/* VIDEO (Sin selectores, ocupa todo el fondo) */}
-            <video 
-                ref={videoRef} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                muted
-            />
-
-            {/* INTERFAZ VISUAL LIMPIA */}
-            {!loading && (
-                <div className="scanner-overlay">
-                    {/* Caja de enfoque */}
-                    <div className="scanner-box">
-                        <div className="scanner-line"></div>
-                    </div>
-                    
-                    <Typography variant="caption" className="scanner-text" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 0.5, borderRadius: 2, color: 'white' }}>
-                        Enfoca el cuadro denso trasero
-                    </Typography>
-
-                    {/* Botón Cancelar abajo (Estilo simple como pediste) */}
-                    <Button 
-                        onClick={() => {
-                            if(controlsRef.current) controlsRef.current.stop();
-                            onClose();
-                        }}
-                        variant="contained" 
-                        color="error" 
-                        size="small"
-                        sx={{ position: 'absolute', bottom: 20, zIndex: 30 }}
-                    >
-                        CANCELAR
-                    </Button>
-                </div>
-            )}
-
-            {loading && (
-                <Box sx={{ position: 'absolute', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <CircularProgress color="success" />
-                    <Typography color="white" mt={2} variant="caption">Cargando cámara...</Typography>
-                </Box>
-            )}
+      {loading ? (
+        <Box sx={{ py: 4 }}>
+          <CircularProgress color="success" />
+          <Typography sx={{ mt: 2 }}>Analizando foto...</Typography>
         </Box>
-    );
+      ) : (
+        <>
+           {/* BOTÓN GRANDE PARA ABRIR CÁMARA */}
+           <Button 
+             variant="contained" 
+             color="success" 
+             size="large"
+             startIcon={<CameraAltIcon />}
+             onClick={() => fileInputRef.current.click()}
+             sx={{ 
+               py: 2, px: 4, 
+               fontSize: '1.1rem', 
+               fontWeight: 'bold',
+               borderRadius: '12px',
+               width: '100%'
+             }}
+           >
+             ABRIR CÁMARA
+           </Button>
+
+           {/* Opción secundaria por si tienen la foto en galería */}
+           <Button 
+             variant="text" 
+             color="inherit" 
+             startIcon={<FileUploadIcon />}
+             onClick={() => {
+                // Quitamos el atributo capture para permitir galería
+                fileInputRef.current.removeAttribute('capture'); 
+                fileInputRef.current.click();
+             }}
+             sx={{ opacity: 0.7 }}
+           >
+             Subir desde Galería
+           </Button>
+        </>
+      )}
+
+      <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mt: 1, textAlign: 'left' }}>
+        <Typography variant="caption" sx={{ color: '#fbbf24', display: 'block', fontWeight: 'bold' }}>
+          💡 RECOMENDACIÓN SAMSUNG:
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#ccc', display: 'block' }}>
+          • Al abrir la cámara, usa el **Zoom 2x**.
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#ccc', display: 'block' }}>
+          • Activa el **Flash** para que se vean bien los puntos.
+        </Typography>
+      </Box>
+
+      <Button onClick={onClose} variant="outlined" color="error" fullWidth sx={{ mt: 1 }}>
+        Cancelar
+      </Button>
+    </Box>
+  );
 }
