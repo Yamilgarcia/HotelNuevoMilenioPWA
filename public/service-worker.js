@@ -6,7 +6,7 @@
    - Assets: stale-while-revalidate (rápido + se actualiza en segundo plano).
 */
 
-const CACHE_NAME = "Hotel-cache-v2";
+const CACHE_NAME = "Hotel-cache-v3";
 
 // Archivos base mínimos para que la app arranque offline
 const CORE_ASSETS = [
