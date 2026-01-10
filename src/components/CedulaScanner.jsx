@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { BrowserPDF417Reader } from '@zxing/browser';
+import { Html5Qrcode } from "html5-qrcode"; // Usamos el motor principal
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
   const [loading, setLoading] = useState(false);
+  const [mensaje, setMensaje] = useState("");
   const fileInputRef = useRef(null);
 
   const handleFileChange = async (event) => {
@@ -13,30 +14,29 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     if (!file) return;
 
     setLoading(true);
+    setMensaje("Analizando la foto... (Esto puede tomar unos segundos)");
 
     try {
-      // 1. Crear URL temporal de la imagen
-      const imageUrl = URL.createObjectURL(file);
+      // Usamos el motor de Html5Qrcode para analizar el archivo
+      const html5QrCode = new Html5Qrcode("reader-hidden");
       
-      // 2. Usar el lector para analizar la FOTO estática
-      const reader = new BrowserPDF417Reader();
+      // Esta función es la clave: analiza la imagen con alta precisión
+      const decodedText = await html5QrCode.scanFileV2(file, true);
       
-      // Intentamos leer el código de la imagen
-      const result = await reader.decodeFromImageUrl(imageUrl);
-      
-      if (result) {
-        const text = result.getText();
-        if (text.length > 15) {
-             onScanSuccess(text); // ¡Éxito!
-        } else {
-             alert("Código ilegible o muy corto. Intenta tomar la foto más cerca.");
-             setLoading(false);
-        }
+      if (decodedText && decodedText.length > 15) {
+         // ¡ÉXITO!
+         onScanSuccess(decodedText);
+      } else {
+         alert("Lectura fallida. El código no se pudo leer completo.");
+         setLoading(false);
+         setMensaje("");
       }
+
     } catch (err) {
-      console.error(err);
-      alert("No se encontró el código PDF417 en la foto.\n\nTips:\n1. Usa FLASH\n2. Enfoca bien el cuadro denso\n3. Que la foto no salga borrosa");
+      console.error("Error de lectura:", err);
+      alert("⚠️ No se pudo leer el código PDF417 en la foto.\n\nCONSEJOS PARA SAMSUNG:\n\n1. ¡Usa el FLASH!\n2. Usa Zoom 2x para enfocar bien\n3. Asegura que la foto no esté movida.");
       setLoading(false);
+      setMensaje("");
     }
   };
 
@@ -47,31 +47,34 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     }}>
       
       <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-        Escáner por Foto
+        Escáner por Foto (Alta Precisión)
       </Typography>
 
       <Typography variant="body2" sx={{ color: '#cbd5e1' }}>
-        Usa la cámara de tu celular para tomar una foto clara de la parte trasera.
+        Toma una foto clara y con flash del código trasero.
       </Typography>
 
-      {/* Input oculto que activa la cámara nativa */}
+      {/* Input oculto para la cámara nativa */}
       <input
         type="file"
         accept="image/*"
-        capture="environment" // Esto fuerza a abrir la cámara trasera
+        capture="environment"
         ref={fileInputRef}
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
 
+      {/* Div oculto necesario para la librería */}
+      <div id="reader-hidden" style={{ display: 'none' }}></div>
+
       {loading ? (
         <Box sx={{ py: 4 }}>
           <CircularProgress color="success" />
-          <Typography sx={{ mt: 2 }}>Analizando foto...</Typography>
+          <Typography sx={{ mt: 2, color: '#fbbf24' }}>{mensaje}</Typography>
         </Box>
       ) : (
         <>
-           {/* BOTÓN GRANDE PARA ABRIR CÁMARA */}
+           {/* BOTÓN PRINCIPAL */}
            <Button 
              variant="contained" 
              color="success" 
@@ -80,41 +83,40 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
              onClick={() => fileInputRef.current.click()}
              sx={{ 
                py: 2, px: 4, 
-               fontSize: '1.1rem', 
-               fontWeight: 'bold',
-               borderRadius: '12px',
-               width: '100%'
+               fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '12px', width: '100%',
+               background: 'linear-gradient(45deg, #10b981 30%, #059669 90%)'
              }}
            >
-             ABRIR CÁMARA
+             ABRIR CÁMARA NATIVA
            </Button>
 
-           {/* Opción secundaria por si tienen la foto en galería */}
            <Button 
              variant="text" 
              color="inherit" 
              startIcon={<FileUploadIcon />}
              onClick={() => {
-                // Quitamos el atributo capture para permitir galería
                 fileInputRef.current.removeAttribute('capture'); 
                 fileInputRef.current.click();
              }}
              sx={{ opacity: 0.7 }}
            >
-             Subir desde Galería
+             O subir de Galería
            </Button>
         </>
       )}
 
       <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mt: 1, textAlign: 'left' }}>
-        <Typography variant="caption" sx={{ color: '#fbbf24', display: 'block', fontWeight: 'bold' }}>
-          💡 RECOMENDACIÓN SAMSUNG:
+        <Typography variant="caption" sx={{ color: '#fbbf24', display: 'block', fontWeight: 'bold', mb: 0.5 }}>
+          ✅ CLAVES PARA EL ÉXITO:
         </Typography>
-        <Typography variant="caption" sx={{ color: '#ccc', display: 'block' }}>
-          • Al abrir la cámara, usa el **Zoom 2x**.
+        <Typography variant="caption" sx={{ color: '#eee', display: 'block' }}>
+          📸 <b>Usa Flash:</b> Es obligatorio para ver los puntos.
         </Typography>
-        <Typography variant="caption" sx={{ color: '#ccc', display: 'block' }}>
-          • Activa el **Flash** para que se vean bien los puntos.
+        <Typography variant="caption" sx={{ color: '#eee', display: 'block' }}>
+          🔍 <b>Zoom 2x:</b> Aléjate 20cm y haz zoom.
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#eee', display: 'block' }}>
+          🎯 <b>Enfoque:</b> Toca la pantalla en el código para enfocar.
         </Typography>
       </Box>
 
