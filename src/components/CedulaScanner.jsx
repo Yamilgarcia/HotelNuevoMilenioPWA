@@ -5,16 +5,44 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import AndroidIcon from '@mui/icons-material/Android'; // Icono para indicar modo nativo
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // --- TRUCO DE MAGIA: REDIMENSIONAR IMAGEN ---
-  // Esto convierte la foto gigante de 108MP del S21 a algo que la web pueda leer
+  // --- LÓGICA 1: DETECTOR NATIVO ANDROID (Lo que hacía experimentalFeatures) ---
+  const scanWithNativeAndroid = async (file) => {
+    if (!('BarcodeDetector' in window)) {
+       throw new Error("Nativo no soportado");
+    }
+    
+    // Crear detector específico para PDF417 (Cédula Nica)
+    const detector = new window.BarcodeDetector({
+      formats: ['pdf417']
+    });
+
+    // Convertir archivo a ImageBitmap (formato nativo rápido)
+    const bitmap = await createImageBitmap(file);
+    
+    try {
+      const barcodes = await detector.detect(bitmap);
+      if (barcodes.length > 0) {
+        // Buscamos el que sea largo (cédula real)
+        const cedulaCode = barcodes.find(code => code.rawValue.length > 15);
+        if (cedulaCode) return cedulaCode.rawValue;
+      }
+      throw new Error("No se detectó PDF417 nativo");
+    } finally {
+      bitmap.close(); // Liberar memoria
+    }
+  };
+
+  // --- LÓGICA 2: LIBRERÍA CON REDIMENSIÓN (Fallback) ---
   const resizeImage = (file) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -24,13 +52,11 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         img.src = event.target.result;
         img.onload = () => {
           const elem = document.createElement('canvas');
-          // Reducimos a un ancho máximo de 1000px (Suficiente para PDF417 y muy rápido)
-          const scaleFactor = 1000 / img.width;
+          const scaleFactor = 1000 / img.width; // Reducir a 1000px
           elem.width = 1000;
           elem.height = img.height * scaleFactor;
           const ctx = elem.getContext('2d');
           ctx.drawImage(img, 0, 0, elem.width, elem.height);
-          // Devolvemos la imagen como archivo Blob procesado
           ctx.canvas.toBlob((blob) => {
             resolve(new File([blob], "resized.jpg", { type: "image/jpeg" }));
           }, 'image/jpeg', 0.9);
@@ -40,68 +66,73 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   };
 
   const handleFileChange = async (event) => {
-    const originalFile = event.target.files[0];
-    if (!originalFile) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
     setLoading(true);
     setErrorMsg("");
+    setStatus("Iniciando escáner inteligente...");
 
     try {
-      // 1. APLICAMOS EL TRUCO: Redimensionar primero
-      const resizedFile = await resizeImage(originalFile);
-
-      // 2. Iniciamos el motor
-      const html5QrCode = new Html5Qrcode("reader-hidden");
-
-      // 3. Leemos la imagen optimizada
-      // true = usa el motor robusto V2
-      const decodedText = await html5QrCode.scanFileV2(resizedFile, true);
-
-      if (decodedText && decodedText.length > 15) {
-        html5QrCode.clear();
-        onScanSuccess(decodedText);
-      } else {
-        throw new Error("Lectura inválida");
+      // 1. INTENTO NATIVO (EL MÁS RÁPIDO) 🚀
+      try {
+        setStatus("Probando Detector Nativo Android...");
+        const nativeResult = await scanWithNativeAndroid(file);
+        console.log("¡Leído con Android Nativo!");
+        onScanSuccess(nativeResult);
+        return; // Terminamos éxito rotundo
+      } catch (nativeErr) {
+        console.log("Fallo nativo, pasando a librería JS...", nativeErr);
       }
+
+      // 2. INTENTO LIBRERÍA (CON REDIMENSIÓN) 🛠️
+      setStatus("Analizando con motor secundario...");
+      const resizedFile = await resizeImage(file);
+      const html5QrCode = new Html5Qrcode("reader-hidden");
+      
+      try {
+        const decodedText = await html5QrCode.scanFileV2(resizedFile, true);
+        if (decodedText && decodedText.length > 15) {
+            html5QrCode.clear();
+            onScanSuccess(decodedText);
+            return;
+        }
+      } catch (e) { console.log("Fallo redimensionado"); }
+
+      // 3. INTENTO DESESPERADO (ORIGINAL) 🐢
+      try {
+         const originalText = await html5QrCode.scanFileV2(file, true);
+         if (originalText && originalText.length > 15) {
+             html5QrCode.clear();
+             onScanSuccess(originalText);
+             return;
+         }
+      } catch(e) {}
+
+      throw new Error("Fallo total");
 
     } catch (err) {
-      console.error("Fallo lectura:", err);
+      console.error("Error final:", err);
       setLoading(false);
-      
-      // Si falla, intentamos una vez más con la imagen original por si acaso
-      if (err?.message !== "Reintento fallido") {
-         console.log("Intentando con imagen original...");
-         try {
-            const html5QrCodeRetry = new Html5Qrcode("reader-hidden-retry");
-            const retryText = await html5QrCodeRetry.scanFileV2(originalFile, true);
-            if (retryText) {
-                onScanSuccess(retryText);
-                return;
-            }
-         } catch(e) { /* Falló el reintento también */ }
-      }
-
-      setErrorMsg("No se pudo leer el código PDF417. Prueba de nuevo.");
+      setErrorMsg("No se pudo leer. Asegúrate de usar FLASH y ZOOM 2x.");
       event.target.value = ''; 
     }
   };
 
   return (
-    <Card sx={{ 
-      maxWidth: 500, margin: '0 auto', borderRadius: 4, 
-      boxShadow: '0 8px 32px rgba(0,0,0,0.3)', bgcolor: '#1e293b', color: 'white' 
-    }}>
+    <Card sx={{ maxWidth: 500, margin: '0 auto', borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', bgcolor: '#1e293b', color: 'white' }}>
       <CardContent sx={{ textAlign: 'center', p: 4 }}>
         
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <CreditCardIcon sx={{ color: '#4ade80', fontSize: 30 }} />
-          <Typography variant="h5" fontWeight="bold">Escáner de Cédula</Typography>
+          <Typography variant="h5" fontWeight="bold">Escáner Pro</Typography>
         </Box>
 
         {loading ? (
           <Box sx={{ py: 5 }}>
             <CircularProgress size={60} sx={{ color: '#4ade80' }} />
-            <Typography sx={{ mt: 2, color: '#94a3b8' }}>Analizando y mejorando imagen...</Typography>
+            <Typography sx={{ mt: 2, color: '#fbbf24', fontWeight: 'bold' }}>{status}</Typography>
+            <Typography variant="caption" sx={{ color: '#94a3b8' }}>Procesando imagen...</Typography>
           </Box>
         ) : (
           <>
@@ -148,7 +179,6 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
             {errorMsg && (
               <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(239, 68, 68, 0.2)', borderRadius: 2, border: '1px solid #ef4444' }}>
                 <Typography color="#fca5a5" variant="body2" fontWeight="bold">❌ {errorMsg}</Typography>
-                <Typography color="#fca5a5" variant="caption" display="block">Tips: Usa Flash y Zoom 2x.</Typography>
               </Box>
             )}
           </>
@@ -158,18 +188,15 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
           <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2, bgcolor: 'rgba(255,255,255,0.05)', p: 1.5, borderRadius: 3 }}>
             <FlashOnIcon sx={{ color: '#fbbf24' }} />
             <Typography variant="caption" color="#cbd5e1" sx={{ alignSelf: 'center' }}>
-               IMPORTANTE: Activa el Flash y usa Zoom 2x
+               Usa <b>Flash</b> y <b>Zoom 2x</b>
             </Typography>
           </Box>
         )}
 
-        {/* INPUTS OCULTOS */}
         <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
         <input type="file" accept="image/*" ref={galleryInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
 
-        {/* MOTORES INVISIBLES (Necesarios 2 por si acaso) */}
         <div id="reader-hidden" style={{ display: 'none' }}></div>
-        <div id="reader-hidden-retry" style={{ display: 'none' }}></div>
 
         <Button onClick={onClose} variant="text" color="inherit" sx={{ mt: 3, color: '#94a3b8', textDecoration: 'underline' }}>
           Cancelar
