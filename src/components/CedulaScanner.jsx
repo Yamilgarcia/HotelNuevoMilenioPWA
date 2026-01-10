@@ -26,17 +26,17 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     try {
       // 1. CONFIGURACIÓN MÁGICA (La que usa el código viejo)
       // Esto activa el "Chip Nativo" de Android que lee fotos verticales
-      const html5QrCode = new Html5Qrcode("reader-hidden", {
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-        },
-        verbose: false
-      });
+     const html5QrCode = new Html5Qrcode("reader-hidden", {
+  formatsToSupport: [Html5QrcodeSupportedFormats.PDF_417],
+  experimentalFeatures: {
+    useBarCodeDetectorIfSupported: false // 🔥 CLAVE
+  }
+});
 
       // 2. ESCANEO DIRECTO
       // El modo nativo maneja fotos grandes mejor, pero por seguridad
       // la librería intentará usar el detector del sistema operativo primero.
-      const decodedText = await html5QrCode.scanFileV2(file, true);
+    const decodedText = await html5QrCode.scanFile(file, true);
 
       if (decodedText && decodedText.length > 15) {
         html5QrCode.clear();
