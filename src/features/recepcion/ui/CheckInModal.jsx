@@ -1,15 +1,12 @@
-// src/features/recepcion/ui/CheckInModal.jsx
 import React, { useState, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Box, MenuItem, InputAdornment, Grid, Typography, Divider, IconButton
+  TextField, Button, Box, MenuItem, InputAdornment, Grid, Typography, Divider
 } from '@mui/material';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-
-// Importamos el componente del escáner
 import CedulaScanner from '../../../components/CedulaScanner'; 
 
 export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
@@ -25,83 +22,89 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   const [errorCedula, setErrorCedula] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
-  // --- LÓGICA DE PRECIOS AUTOMÁTICA ---
+  // Lógica de Precios
   const precioCalculado = useMemo(() => {
     if (!habitacion) return 0;
     let precioBase = Number(habitacion.precio) || 0;
     const categoria = habitacion.categoria?.toLowerCase() || '';
-
-    // Regla: Habitaciones Dobles (3+ personas = 600, sino 500)
-    if (categoria.includes('doble')) {
-      return form.personas >= 3 ? 600 : 500;
-    }
+    if (categoria.includes('doble')) return form.personas >= 3 ? 600 : 500;
     return precioBase;
   }, [habitacion, form.personas]);
 
-  // --- PROCESAMIENTO DEL ESCÁNER (DEBUG ACTIVO) ---
+  // --- NUEVA LÓGICA DE PARSEO (Separación de datos) ---
   const handleScanData = (rawData) => {
-    // ⚠️ IMPORTANTE: Esta alerta nos dirá qué está leyendo exactamente tu celular.
-    // Mándame una foto de lo que salga aquí.
-    alert("DATOS DEL CÓDIGO:\n" + rawData);
+    // El formato crudo es: SERIAL<CEDULA<APELLIDO1<APELLIDO2<NOMBRE1<NOMBRE2<...
+    // Ejemplo: 12753150<1231206031000A<GARCIA<ROMERO<JOSE<YAMIL<...
+    
+    try {
+        const partes = rawData.split('<');
 
-    // Intentamos buscar la cédula aunque tenga caracteres raros alrededor
-    // Busca: 3 dígitos, opcional guion, 6 dígitos, opcional guion, 4 dígitos, letra mayúscula
-    const regexCedula = /(\d{3})-?(\d{6})-?(\d{4}[A-Z])/;
-    const match = rawData.match(regexCedula);
+        // Validamos que tenga suficientes partes para ser una cédula real
+        if (partes.length < 5) {
+            alert("Lectura incompleta. Intenta escanear de nuevo.");
+            return;
+        }
 
-    let nuevaCedula = "";
-    if (match) {
-        // Reconstruimos el formato con guiones: 121-251090-0000A
-        nuevaCedula = `${match[1]}-${match[2]}-${match[3]}`;
+        // 1. Extraer y Formatear Cédula (índice 1)
+        // Viene así: 1231206031000A -> Queremos: 123-120603-1000A
+        const rawCedula = partes[1];
+        let cedulaFormateada = rawCedula;
+        if (rawCedula.length === 14) { // 13 dígitos + 1 letra
+             cedulaFormateada = `${rawCedula.substring(0,3)}-${rawCedula.substring(3,9)}-${rawCedula.substring(9)}`;
+        }
+
+        // 2. Extraer Nombres (Índices 2, 3, 4, 5)
+        const apellido1 = partes[2] || "";
+        const apellido2 = partes[3] || "";
+        const nombre1   = partes[4] || "";
+        // A veces el segundo nombre no existe o es el lugar de nacimiento, validamos que sea texto simple
+        let nombre2   = partes[5] || "";
         
+        // Si el "segundo nombre" tiene números o guiones, es probable que sea una fecha/lugar, así que lo dejamos vacío
+        if (nombre2.match(/[0-9]/)) nombre2 = ""; 
+
+        // 3. Rellenar el formulario MÁGICAMENTE
         setForm(prev => ({
             ...prev,
-            cedula: nuevaCedula
+            cedula: cedulaFormateada,
+            primerApellido: apellido1,
+            segundoApellido: apellido2,
+            primerNombre: nombre1,
+            segundoNombre: nombre2
         }));
-        
-        alert("✅ Cédula detectada: " + nuevaCedula);
-        setShowScanner(false); // Cerramos cámara solo si tuvo éxito
-    } else {
-        // Si falla, no cerramos la cámara para que intente de nuevo
-        console.log("Lectura fallida o formato desconocido:", rawData);
+
+        setShowScanner(false); // Éxito: cerrar cámara
+        // (Opcional) Reproducir un pitido o vibrar
+        if (navigator.vibrate) navigator.vibrate(200);
+
+    } catch (e) {
+        console.error("Error al procesar datos:", e);
+        alert("Error procesando los datos de la cédula.");
     }
   };
 
-  // --- VALIDACIÓN MANUAL DE CÉDULA ---
-  const validarCedulaNica = (cedula) => {
-    const regex = /^\d{3}-\d{6}-\d{4}[A-Z]$/;
-    return regex.test(cedula);
-  };
+  // ... (Resto de funciones: validarCedulaNica, handleChange, handleSubmit...)
+  const validarCedulaNica = (cedula) => /^\d{3}-\d{6}-\d{4}[A-Z]$/.test(cedula);
 
   const handleChange = (e) => {
     let { name, value } = e.target;
-
     if (name === 'cedula') {
       value = value.toUpperCase();
-      // Auto-formato al escribir manual
       if (value.length === 3 && form.cedula.length === 2) value += '-';
       if (value.length === 10 && form.cedula.length === 9) value += '-';
-
-      if (value.length >= 16) {
-        setErrorCedula(!validarCedulaNica(value));
-      } else {
-        setErrorCedula(false);
-      }
+      if (value.length >= 16) setErrorCedula(!validarCedulaNica(value));
+      else setErrorCedula(false);
     }
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = () => {
-    if (!form.primerNombre.trim() || !form.primerApellido.trim()) {
-        alert('⚠️ Primer Nombre y Primer Apellido son obligatorios.');
-        return;
-    }
+    if (!form.primerNombre.trim() || !form.primerApellido.trim()) return alert('Nombres obligatorios');
     if (form.cedula && !validarCedulaNica(form.cedula)) {
-        alert('⚠️ Cédula inválida. Formato: 000-000000-0000X');
+        alert('Cédula inválida. Formato: 000-000000-0000X');
         setErrorCedula(true);
         return;
     }
-
     onConfirm(habitacion.id, form, precioCalculado);
     handleClose();
   };
@@ -122,94 +125,54 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
       </DialogTitle>
       
       <DialogContent sx={{ mt: 2 }}>
-        
-        {/* --- MODO ESCÁNER --- */}
         {showScanner ? (
-            <CedulaScanner 
-                onScanSuccess={handleScanData} 
-                onClose={() => setShowScanner(false)} 
-            />
+            <CedulaScanner onScanSuccess={handleScanData} onClose={() => setShowScanner(false)} />
         ) : (
-            /* --- MODO FORMULARIO --- */
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            
-            {/* SECCIÓN IDENTIFICACIÓN */}
-            <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>
-                IDENTIFICACIÓN
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                <TextField
-                    label="Cédula de Identidad"
-                    name="cedula"
-                    value={form.cedula}
-                    onChange={handleChange}
-                    fullWidth
-                    placeholder="121-251090-1000A"
-                    error={errorCedula}
-                    helperText={errorCedula ? 'Formato inválido' : ''}
-                    inputProps={{ maxLength: 16 }}
-                    InputProps={{
-                        startAdornment: <InputAdornment position="start"><CreditCardIcon /></InputAdornment>,
-                    }}
-                />
-                <Button 
-                    variant="contained" 
-                    sx={{ bgcolor: '#334155', minWidth: '100px', height: '56px', display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}
-                    onClick={() => setShowScanner(true)}
-                >
-                    <QrCodeScannerIcon />
-                    <Typography variant="caption">Escanear</Typography>
-                </Button>
-            </Box>
-
-            {/* SECCIÓN DATOS PERSONALES */}
-            <Typography variant="subtitle2" sx={{ color: '#64748b', mt: 1, mb: -1, fontWeight: 'bold' }}>
-                DATOS DEL HUÉSPED
-            </Typography>
-            <Grid container spacing={2}>
-                <Grid item xs={6}>
-                <TextField label="Primer Nombre" name="primerNombre" value={form.primerNombre} onChange={handleChange} fullWidth required />
-                </Grid>
-                <Grid item xs={6}>
-                <TextField label="Segundo Nombre" name="segundoNombre" value={form.segundoNombre} onChange={handleChange} fullWidth />
-                </Grid>
-                <Grid item xs={6}>
-                <TextField label="Primer Apellido" name="primerApellido" value={form.primerApellido} onChange={handleChange} fullWidth required />
-                </Grid>
-                <Grid item xs={6}>
-                <TextField label="Segundo Apellido" name="segundoApellido" value={form.segundoApellido} onChange={handleChange} fullWidth />
-                </Grid>
-            </Grid>
-
-            <Divider sx={{ my: 1 }} />
-
-            {/* SECCIÓN COBRO */}
-            <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>
-                COBRO (PAGO ADELANTADO)
-            </Typography>
-            <Grid container spacing={2} alignItems="center">
-                <Grid item xs={6}>
-                <TextField select label="Personas" name="personas" value={form.personas} onChange={handleChange} fullWidth>
-                    {[1, 2, 3, 4, 5].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
-                </TextField>
-                </Grid>
-                <Grid item xs={6}>
-                <Box sx={{ bgcolor: '#ecfdf5', p: 1.5, borderRadius: 2, border: '1px solid #10b981', textAlign: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#047857', fontWeight: 'bold' }}>A COBRAR AHORA</Typography>
-                    <Typography variant="h5" sx={{ color: '#059669', fontWeight: 900 }}>C$ {precioCalculado}</Typography>
+                {/* ... (TUS CAMPOS DE SIEMPRE) ... */}
+                <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>IDENTIFICACIÓN</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                        label="Cédula" name="cedula" value={form.cedula} onChange={handleChange} fullWidth
+                        error={errorCedula} inputProps={{ maxLength: 16 }}
+                        InputProps={{ startAdornment: <InputAdornment position="start"><CreditCardIcon /></InputAdornment> }}
+                    />
+                    <Button variant="contained" sx={{ bgcolor: '#334155', minWidth: '100px' }} onClick={() => setShowScanner(true)}>
+                        <QrCodeScannerIcon />
+                    </Button>
                 </Box>
+
+                <Typography variant="subtitle2" sx={{ color: '#64748b', mt: 1, mb: -1, fontWeight: 'bold' }}>DATOS DEL HUÉSPED</Typography>
+                <Grid container spacing={2}>
+                    <Grid item xs={6}><TextField label="Primer Nombre" name="primerNombre" value={form.primerNombre} onChange={handleChange} fullWidth required /></Grid>
+                    <Grid item xs={6}><TextField label="Segundo Nombre" name="segundoNombre" value={form.segundoNombre} onChange={handleChange} fullWidth /></Grid>
+                    <Grid item xs={6}><TextField label="Primer Apellido" name="primerApellido" value={form.primerApellido} onChange={handleChange} fullWidth required /></Grid>
+                    <Grid item xs={6}><TextField label="Segundo Apellido" name="segundoApellido" value={form.segundoApellido} onChange={handleChange} fullWidth /></Grid>
                 </Grid>
-            </Grid>
+                
+                <Divider sx={{ my: 1 }} />
+                
+                <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>COBRO</Typography>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={6}>
+                        <TextField select label="Personas" name="personas" value={form.personas} onChange={handleChange} fullWidth>
+                            {[1, 2, 3, 4, 5].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={6}>
+                        <Box sx={{ bgcolor: '#ecfdf5', p: 1.5, borderRadius: 2, border: '1px solid #10b981', textAlign: 'center' }}>
+                            <Typography variant="caption" sx={{ color: '#047857', fontWeight: 'bold' }}>TOTAL</Typography>
+                            <Typography variant="h5" sx={{ color: '#059669', fontWeight: 900 }}>C$ {precioCalculado}</Typography>
+                        </Box>
+                    </Grid>
+                </Grid>
             </Box>
         )}
       </DialogContent>
-
       {!showScanner && (
         <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
             <Button onClick={handleClose} color="inherit">Cancelar</Button>
-            <Button onClick={handleSubmit} variant="contained" color="success" startIcon={<AttachMoneyIcon />} sx={{ fontWeight: 'bold' }}>
-            COBRAR Y REGISTRAR
-            </Button>
+            <Button onClick={handleSubmit} variant="contained" color="success" startIcon={<AttachMoneyIcon />} sx={{ fontWeight: 'bold' }}>COBRAR</Button>
         </DialogActions>
       )}
     </Dialog>
