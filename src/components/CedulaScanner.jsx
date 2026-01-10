@@ -1,102 +1,185 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner } from "html5-qrcode";
-import { Box, Typography, Button } from '@mui/material';
+import React, { useState, useRef } from 'react';
+import { Box, Typography, Button, CircularProgress, Card, CardContent } from '@mui/material';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import AndroidIcon from '@mui/icons-material/Android';
+
+// Importamos Html5Qrcode solo como plan de respaldo
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const [mensaje, setMensaje] = useState("Iniciando modo depuración...");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
-  useEffect(() => {
-    console.log("🔵 [DEBUG] 1. Montando componente CedulaScanner...");
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-    // Definimos la configuración para poder loguearla
-    const config = { 
-        fps: 10, 
-        qrbox: { width: 300, height: 250 }, 
-        aspectRatio: 1.0,
-        disableFlip: false, 
-        // IMPORTANTE: Esto habilita el chip nativo de Android
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-        },
-        videoConstraints: {
-            facingMode: "environment", 
-            width: { min: 1024, ideal: 1280, max: 1920 },
-            height: { min: 576, ideal: 720, max: 1080 },
-            focusMode: "continuous"
+    // Limpiamos el input para que puedas reintentar si quieres
+    event.target.value = '';
+
+    setLoading(true);
+    setErrorMsg("");
+    setStatus("Procesando imagen...");
+
+    try {
+        // --- PASO 1: INTENTO CON CHIP NATIVO DE SAMSUNG (ANDROID) ---
+        // Este es el método más rápido y potente. Lee fotos verticales.
+        if ('BarcodeDetector' in window) {
+            try {
+                setStatus("Analizando con Chip Nativo...");
+                
+                // 1. Crear detector para PDF417
+                const detector = new window.BarcodeDetector({ formats: ['pdf417'] });
+                
+                // 2. Convertir la foto a un formato ultra-rápido (Bitmap)
+                // Esto evita que el celular se congele con fotos de 108MP
+                const bitmap = await createImageBitmap(file);
+                
+                try {
+                    const barcodes = await detector.detect(bitmap);
+                    // Buscamos el código de la cédula (debe ser largo)
+                    const found = barcodes.find(code => code.rawValue.length > 20);
+                    
+                    if (found) {
+                        console.log("¡Leído con Android Nativo!");
+                        onScanSuccess(found.rawValue);
+                        return; // ¡ÉXITO!
+                    }
+                } finally {
+                    bitmap.close(); // Liberar memoria obligatoriamente
+                }
+            } catch (e) {
+                console.log("Fallo nativo, pasando al plan B...", e);
+            }
         }
-    };
 
-    console.log("🔵 [DEBUG] 2. Configuración cargada:", config);
+        // --- PASO 2: PLAN B - LIBRERÍA JS (SI FALLA EL NATIVO) ---
+        // Si el nativo falla, usamos la librería pero con la foto reducida
+        setStatus("Usando motor secundario...");
+        
+        const html5QrCode = new Html5Qrcode("reader-hidden", {
+            formatsToSupport: [Html5QrcodeSupportedFormats.PDF_417],
+            verbose: false
+        });
 
-    // Creamos la instancia
-    const scanner = new Html5QrcodeScanner("reader", config, /* verbose= */ true); // Verbose true ayuda también
+        // Reducimos la imagen antes de pasarla al motor JS para que no tarde 10 min
+        const resizedImage = await resizeImage(file);
+        const result = await html5QrCode.scanFileV2(resizedImage, true);
+        
+        if (result && result.length > 20) {
+            html5QrCode.clear();
+            onScanSuccess(result);
+            return;
+        }
 
-    // --- CALLBACK DE ÉXITO ---
-    const onDetect = (decodedText, decodedResult) => {
-      console.log("🟢 [DEBUG] ¡LECTURA EXITOSA DETECTADA!");
-      console.log("📄 Texto crudo:", decodedText);
-      console.log("📊 Objeto completo:", decodedResult);
+        throw new Error("No se pudo leer");
 
-      if (decodedText.length < 15) {
-        console.warn("🟠 [DEBUG] Lectura ignorada: Es muy corta (" + decodedText.length + " caracteres).");
-        setMensaje("⚠️ Leí algo, pero es muy corto. ¿Es el código de barras pequeño?");
-      } else {
-        console.log("✅ [DEBUG] Código válido. Enviando a la app...");
-        scanner.clear().then(() => {
-            console.log("🔵 [DEBUG] Escáner limpiado post-éxito.");
-            onScanSuccess(decodedText);
-        }).catch(err => console.error("🔴 Error limpiando:", err));
-      }
-    };
+    } catch (err) {
+        console.error(err);
+        setLoading(false);
+        setErrorMsg("⚠️ No se detectó la cédula.");
+    }
+  };
 
-    // --- CALLBACK DE ERROR ---
-    // Esto se ejecuta CADA VEZ que el escáner mira un frame y no ve nada.
-    // O cuando subes una foto y falla al leerla.
-    const onError = (errorMessage) => {
-      // Filtramos mensajes repetitivos para no saturar, pero mostramos los importantes
-      if (typeof errorMessage === 'string') {
-          if(errorMessage.includes("No MultiFormat Readers")) {
-              // Este es el error normal de "no veo nada en este frame"
-              // Lo ignoramos para no ensuciar, o lo ponemos en debug
-              // console.debug("."); 
-              return;
-          }
-      }
-      console.error("🔴 [DEBUG] FALLO DE LECTURA:", errorMessage);
-    };
-
-    console.log("🔵 [DEBUG] 3. Renderizando escáner en el DOM...");
-    scanner.render(onDetect, onError);
-
-    // Limpieza al salir
-    return () => {
-      console.log("🔵 [DEBUG] 4. Desmontando componente. Limpiando escáner...");
-      scanner.clear().catch(err => console.error("🔴 [DEBUG] Error al limpiar:", err));
-    };
-  }, [onScanSuccess]);
+  // Función auxiliar para reducir imagen (solo para el Plan B)
+  const resizeImage = (file) => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Máximo 1200px para que sea rápido
+                const scale = 1200 / Math.max(img.width, img.height);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob(b => resolve(new File([b], "r.jpg", {type:"image/jpeg"})), 'image/jpeg', 0.9);
+            };
+            img.src = e.target.result;
+        };
+    });
+  };
 
   return (
-    <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Escáner (Modo DEBUG)
-      </Typography>
-      
-      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
-        {mensaje}
-      </Typography>
-      
-      {/* Caja negra donde se monta el video/input */}
-      <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto', border: '2px solid red' }}></div>
-      
-      <Box sx={{ mt: 2, border: '1px dashed #666', p: 1 }}>
-         <Typography variant="caption" color="#aaa">
-            Abre la consola del navegador para ver los logs.
-         </Typography>
-      </Box>
+    <Card sx={{ maxWidth: 500, margin: '0 auto', borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', bgcolor: '#1e293b', color: 'white' }}>
+      <CardContent sx={{ textAlign: 'center', p: 4 }}>
+        
+        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <CreditCardIcon sx={{ color: '#4ade80', fontSize: 30 }} />
+          <Typography variant="h5" fontWeight="bold">Escáner Nativo</Typography>
+        </Box>
 
-      <Button onClick={onClose} variant="outlined" color="error" sx={{ mt: 2 }}>
-        Cancelar
-      </Button>
-    </Box>
+        {loading ? (
+          <Box sx={{ py: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <CircularProgress size={60} sx={{ color: '#4ade80' }} />
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AndroidIcon sx={{ color: '#a3e635' }} />
+                <Typography sx={{ color: '#fbbf24' }}>{status}</Typography>
+            </Box>
+          </Box>
+        ) : (
+          <>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                
+                {/* ESTE BOTÓN ABRE LA CÁMARA NATIVA DE SAMSUNG */}
+                <Button
+                    onClick={() => cameraInputRef.current.click()}
+                    sx={{
+                        width: 180, height: 180, borderRadius: '50%',
+                        background: 'linear-gradient(145deg, #334155, #1e293b)', 
+                        border: '4px solid #4ade80',
+                        boxShadow: '0 0 25px rgba(74, 222, 128, 0.4)',
+                        display: 'flex', flexDirection: 'column', gap: 1,
+                        textTransform: 'none',
+                        '&:hover': { transform: 'scale(1.05)' }
+                    }}
+                >
+                    <CameraAltIcon sx={{ fontSize: 60, color: '#fff' }} />
+                    <Typography variant="h6" fontWeight="bold" color="white">TOMAR FOTO</Typography>
+                </Button>
+
+                <Button 
+                    onClick={() => galleryInputRef.current.click()}
+                    variant="outlined"
+                    startIcon={<PhotoLibraryIcon />}
+                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)', borderRadius: 3, px: 4 }}
+                >
+                    Subir desde Galería
+                </Button>
+            </Box>
+
+            {errorMsg && (
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(239, 68, 68, 0.15)', borderRadius: 2, border: '1px solid #ef4444' }}>
+                <Typography color="#fca5a5" variant="body2" fontWeight="bold">{errorMsg}</Typography>
+                <Typography color="#fca5a5" variant="caption">Intenta tomar la foto un poco más lejos y con Flash.</Typography>
+              </Box>
+            )}
+          </>
+        )}
+
+        {/* INPUTS OCULTOS */}
+        {/* capture="environment" ES LO QUE FUERZA LA CÁMARA NATIVA */}
+        <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+        <input type="file" accept="image/*" ref={galleryInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+        
+        {/* Div necesario para el Plan B */}
+        <div id="reader-hidden" style={{ display: 'none' }}></div>
+
+        <Button onClick={onClose} variant="text" color="inherit" sx={{ mt: 3, color: '#94a3b8' }}>
+          Cancelar
+        </Button>
+
+      </CardContent>
+    </Card>
   );
 }
