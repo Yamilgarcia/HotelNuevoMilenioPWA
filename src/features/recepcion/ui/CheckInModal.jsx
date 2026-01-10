@@ -1,3 +1,4 @@
+// src/features/recepcion/ui/CheckInModal.jsx
 import React, { useState, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -6,9 +7,9 @@ import {
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'; // Icono del escáner
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 
-// Importamos el componente que acabamos de crear
+// Importamos el componente del escáner
 import CedulaScanner from '../../../components/CedulaScanner'; 
 
 export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
@@ -22,79 +23,92 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   });
 
   const [errorCedula, setErrorCedula] = useState(false);
-  const [showScanner, setShowScanner] = useState(false); // Estado para mostrar/ocultar cámara
+  const [showScanner, setShowScanner] = useState(false);
 
-  // ... (MANTÉN AQUÍ TU LÓGICA DE PRECIO CALCULADO - useMemo) ...
+  // --- LÓGICA DE PRECIOS AUTOMÁTICA ---
   const precioCalculado = useMemo(() => {
-     if (!habitacion) return 0;
-     let precioBase = Number(habitacion.precio) || 0;
-     const categoria = habitacion.categoria?.toLowerCase() || '';
-     if (categoria.includes('doble')) {
-       return form.personas >= 3 ? 600 : 500;
-     }
-     return precioBase;
+    if (!habitacion) return 0;
+    let precioBase = Number(habitacion.precio) || 0;
+    const categoria = habitacion.categoria?.toLowerCase() || '';
+
+    // Regla: Habitaciones Dobles (3+ personas = 600, sino 500)
+    if (categoria.includes('doble')) {
+      return form.personas >= 3 ? 600 : 500;
+    }
+    return precioBase;
   }, [habitacion, form.personas]);
 
-  // --- LÓGICA DE PROCESAMIENTO DE DATOS ESCANEADOS ---
+  // --- PROCESAMIENTO DEL ESCÁNER (DEBUG ACTIVO) ---
   const handleScanData = (rawData) => {
-    console.log("Datos crudos escaneados:", rawData);
-    
-    // 1. Intentar extraer la Cédula usando Expresión Regular
-    // Busca patrón: 3 digitos, guion, 6 digitos, guion, 4 digitos, letra
+    // ⚠️ IMPORTANTE: Esta alerta nos dirá qué está leyendo exactamente tu celular.
+    // Mándame una foto de lo que salga aquí.
+    alert("DATOS DEL CÓDIGO:\n" + rawData);
+
+    // Intentamos buscar la cédula aunque tenga caracteres raros alrededor
+    // Busca: 3 dígitos, opcional guion, 6 dígitos, opcional guion, 4 dígitos, letra mayúscula
     const regexCedula = /(\d{3})-?(\d{6})-?(\d{4}[A-Z])/;
     const match = rawData.match(regexCedula);
 
     let nuevaCedula = "";
     if (match) {
-        // Reconstruimos con guiones: 121-251090-0000A
+        // Reconstruimos el formato con guiones: 121-251090-0000A
         nuevaCedula = `${match[1]}-${match[2]}-${match[3]}`;
+        
+        setForm(prev => ({
+            ...prev,
+            cedula: nuevaCedula
+        }));
+        
+        alert("✅ Cédula detectada: " + nuevaCedula);
+        setShowScanner(false); // Cerramos cámara solo si tuvo éxito
     } else {
-        alert("Se escaneó el código, pero no se detectó el número de cédula. Intenta acercar más.");
+        // Si falla, no cerramos la cámara para que intente de nuevo
+        console.log("Lectura fallida o formato desconocido:", rawData);
     }
-
-    // 2. Intentar extraer Nombres (ESTO ES EXPERIMENTAL)
-    // En muchas cédulas, el formato es: CEDULA|APELLIDO1|APELLIDO2|NOMBRES...
-    // O a veces texto plano separado por espacios.
-    // Por seguridad, llenaremos la cédula y dejaremos que verifiques los nombres, 
-    // pero si logramos detectar mayúsculas seguidas, las sugerimos.
-    
-    // Aquí simulamos que el scanner leyó algo útil (ajustaremos esto cuando pruebes tu primera cédula real)
-    
-    setForm(prev => ({
-        ...prev,
-        cedula: nuevaCedula || prev.cedula
-    }));
-
-    setShowScanner(false); // Cerramos cámara
   };
 
+  // --- VALIDACIÓN MANUAL DE CÉDULA ---
   const validarCedulaNica = (cedula) => {
     const regex = /^\d{3}-\d{6}-\d{4}[A-Z]$/;
     return regex.test(cedula);
   };
 
   const handleChange = (e) => {
-    // ... (MANTÉN TU LÓGICA DE HANDLE CHANGE EXISTENTE) ...
     let { name, value } = e.target;
+
     if (name === 'cedula') {
       value = value.toUpperCase();
+      // Auto-formato al escribir manual
       if (value.length === 3 && form.cedula.length === 2) value += '-';
       if (value.length === 10 && form.cedula.length === 9) value += '-';
-      if (value.length >= 16) setErrorCedula(!validarCedulaNica(value));
-      else setErrorCedula(false);
+
+      if (value.length >= 16) {
+        setErrorCedula(!validarCedulaNica(value));
+      } else {
+        setErrorCedula(false);
+      }
     }
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = () => {
-     // ... (MANTÉN TU LOGICA DE SUBMIT EXISTENTE) ...
-     if (!form.primerNombre.trim() || !form.primerApellido.trim()) return alert('Nombres obligatorios');
-     onConfirm(habitacion.id, form, precioCalculado);
-     handleClose();
+    if (!form.primerNombre.trim() || !form.primerApellido.trim()) {
+        alert('⚠️ Primer Nombre y Primer Apellido son obligatorios.');
+        return;
+    }
+    if (form.cedula && !validarCedulaNica(form.cedula)) {
+        alert('⚠️ Cédula inválida. Formato: 000-000000-0000X');
+        setErrorCedula(true);
+        return;
+    }
+
+    onConfirm(habitacion.id, form, precioCalculado);
+    handleClose();
   };
-  
+
   const handleClose = () => {
     setForm({ cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', personas: 1 });
+    setErrorCedula(false);
     setShowScanner(false);
     onClose();
   };
@@ -116,11 +130,14 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                 onClose={() => setShowScanner(false)} 
             />
         ) : (
-            /* --- MODO FORMULARIO NORMAL --- */
+            /* --- MODO FORMULARIO --- */
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             
-            {/* SECCIÓN IDENTIFICACIÓN CON BOTÓN DE ESCANEAR */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+            {/* SECCIÓN IDENTIFICACIÓN */}
+            <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>
+                IDENTIFICACIÓN
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                 <TextField
                     label="Cédula de Identidad"
                     name="cedula"
@@ -132,20 +149,20 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                     helperText={errorCedula ? 'Formato inválido' : ''}
                     inputProps={{ maxLength: 16 }}
                     InputProps={{
-                    startAdornment: <InputAdornment position="start"><CreditCardIcon /></InputAdornment>,
+                        startAdornment: <InputAdornment position="start"><CreditCardIcon /></InputAdornment>,
                     }}
                 />
                 <Button 
                     variant="contained" 
-                    sx={{ bgcolor: '#334155', minWidth: '120px', height: '56px' }}
-                    startIcon={<QrCodeScannerIcon />}
+                    sx={{ bgcolor: '#334155', minWidth: '100px', height: '56px', display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}
                     onClick={() => setShowScanner(true)}
                 >
-                    Escanear
+                    <QrCodeScannerIcon />
+                    <Typography variant="caption">Escanear</Typography>
                 </Button>
             </Box>
 
-            {/* ... (RESTO DE TUS CAMPOS DE NOMBRE Y PRECIO - IGUAL QUE ANTES) ... */}
+            {/* SECCIÓN DATOS PERSONALES */}
             <Typography variant="subtitle2" sx={{ color: '#64748b', mt: 1, mb: -1, fontWeight: 'bold' }}>
                 DATOS DEL HUÉSPED
             </Typography>
@@ -166,6 +183,7 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
 
             <Divider sx={{ my: 1 }} />
 
+            {/* SECCIÓN COBRO */}
             <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>
                 COBRO (PAGO ADELANTADO)
             </Typography>
