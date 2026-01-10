@@ -1,223 +1,191 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Html5Qrcode } from "html5-qrcode";
-import { Box, Typography, IconButton, Slider, CircularProgress } from '@mui/material';
+import React, { useEffect, useRef, useState } from 'react';
+import { BrowserPDF417Reader } from '@zxing/browser';
+import { Box, Typography, IconButton, Select, MenuItem, CircularProgress } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
-import FlashOffIcon from '@mui/icons-material/FlashOff';
-import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
-
 import './CedulaScanner.css';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const [html5QrCode, setHtml5QrCode] = useState(null);
-  const [cameras, setCameras] = useState([]);
-  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
-  const [activeCameraLabel, setActiveCameraLabel] = useState("");
-  
-  const [loading, setLoading] = useState(true);
-  const [torchOn, setTorchOn] = useState(false);
-  const [zoom, setZoom] = useState(1.5); // Empezamos con un poco de zoom para evitar distorsión
+    const videoRef = useRef(null);
+    const controlsRef = useRef(null); // AQUÍ guardaremos el control para detener la cámara
+    const [loading, setLoading] = useState(true);
+    const [devices, setDevices] = useState([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState('');
+    const [reader] = useState(new BrowserPDF417Reader()); // Instancia única del lector
 
-  useEffect(() => {
-    const scanner = new Html5Qrcode("reader");
-    setHtml5QrCode(scanner);
+    // 1. OBTENER CÁMARAS AL INICIAR
+    useEffect(() => {
+        BrowserPDF417Reader.listVideoInputDevices()
+            .then((videoInputDevices) => {
+                setDevices(videoInputDevices);
+                if (videoInputDevices.length > 0) {
+                    // Buscar cámara trasera por nombre (back, trasera, environment, 0)
+                    const backCam = videoInputDevices.find(d => 
+                        d.label.toLowerCase().includes('back') || 
+                        d.label.toLowerCase().includes('trasera') || 
+                        d.label.toLowerCase().includes('0')
+                    );
+                    // Si encuentra trasera usa esa, si no la última de la lista
+                    const defaultId = backCam ? backCam.deviceId : videoInputDevices[videoInputDevices.length - 1].deviceId;
+                    setSelectedDeviceId(defaultId);
+                } else {
+                    setLoading(false);
+                    alert("No se detectaron cámaras.");
+                }
+            })
+            .catch((err) => {
+                console.error("Error listando cámaras:", err);
+                setLoading(false);
+            });
 
-    // 1. OBTENER CÁMARAS Y SELECCIONAR LA MEJOR
-    Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-            // Filtramos solo las traseras
-            const backCameras = devices.filter(d => 
-                d.label.toLowerCase().includes('back') || 
-                d.label.toLowerCase().includes('trasera') || 
-                d.label.toLowerCase().includes('environment')
-            );
+        // LIMPIEZA AL SALIR (Desmontar componente)
+        return () => {
+            if (controlsRef.current) {
+                controlsRef.current.stop(); // Detener cámara correctamente
+                controlsRef.current = null;
+            }
+        };
+    }, []);
+
+    // 2. INICIAR/CAMBIAR CÁMARA
+    useEffect(() => {
+        if (!selectedDeviceId) return;
+
+        const startScan = async () => {
+            setLoading(true);
             
-            const camerasToUse = backCameras.length > 0 ? backCameras : devices;
-            setCameras(camerasToUse);
-
-            // INTELIGENCIA: Intentar evitar la "Wide" o "0" si hay varias
-            // En Samsung, a veces la principal no es la 0. Probaremos buscar una que NO diga "wide".
-            let bestIndex = 0;
-            const normalCamIndex = camerasToUse.findIndex(c => 
-                !c.label.toLowerCase().includes('wide') && 
-                !c.label.toLowerCase().includes('ultra')
-            );
-            
-            if (normalCamIndex !== -1) {
-                bestIndex = normalCamIndex;
+            // Si ya hay una cámara corriendo, detenerla primero
+            if (controlsRef.current) {
+                controlsRef.current.stop();
+                controlsRef.current = null;
             }
 
-            // Iniciamos con la cámara elegida
-            setCurrentCameraIndex(bestIndex);
-            startCamera(scanner, camerasToUse[bestIndex]);
-        } else {
-            alert("No se detectaron cámaras.");
-            setLoading(false);
-        }
-    }).catch(err => {
-        console.error("Error permisos cámara", err);
-        setLoading(false);
-        alert("Error de permisos de cámara.");
-    });
+            try {
+                // Iniciar escaneo en el elemento <video>
+                const controls = await reader.decodeFromVideoDevice(
+                    selectedDeviceId,
+                    videoRef.current,
+                    (result, err) => {
+                        if (result) {
+                            const text = result.getText();
+                            // Filtro para evitar lecturas falsas cortas
+                            if (text.length > 15) {
+                                // DETENER CAMARA ANTES DE SALIR
+                                controls.stop();
+                                controlsRef.current = null;
+                                onScanSuccess(text);
+                            }
+                        }
+                    }
+                );
+                
+                controlsRef.current = controls; // Guardamos el control para poder detenerlo luego
+                setLoading(false);
+                
+                // Intentar aplicar Zoom 2x nativo
+                aplicarZoom(videoRef.current);
 
-    return () => {
-      if (scanner.isScanning) {
-        scanner.stop().catch(e => console.error(e));
-      }
+            } catch (error) {
+                console.error("Error iniciando escáner:", error);
+                setLoading(false);
+            }
+        };
+
+        startScan();
+
+    }, [selectedDeviceId, reader, onScanSuccess]);
+
+    // Función auxiliar para forzar Zoom (Truco para S21/S23)
+    const aplicarZoom = (videoElement) => {
+        try {
+            if (videoElement && videoElement.srcObject) {
+                const track = videoElement.srcObject.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+                if (capabilities.zoom) {
+                    // Aplicar un zoom de 2.0x si el hardware lo permite
+                    track.applyConstraints({ advanced: [{ zoom: 2.0 }] });
+                }
+            }
+        } catch (e) {
+            console.log("Zoom no soportado en este navegador/lente", e);
+        }
     };
-  }, []);
 
-  const startCamera = (scanner, cameraObj) => {
-    setLoading(true);
-    setActiveCameraLabel(cameraObj.label); // Guardamos el nombre para mostrarlo
-    
-    scanner.start(
-      cameraObj.id, 
-      {
-        fps: 25, // Máxima fluidez
-        qrbox: { width: 300, height: 180 },
-        aspectRatio: 1.0,
-        disableFlip: false,
-        videoConstraints: {
-            focusMode: "continuous",
-            height: { min: 720, ideal: 1080 } // HD Obligatorio
-        }
-      },
-      (decodedText) => {
-          if (decodedText.length > 15) {
-             scanner.stop().then(() => onScanSuccess(decodedText));
-          }
-      },
-      (errorMessage) => {}
-    ).then(() => {
-        setLoading(false);
-        // Intentar aplicar zoom inicial
-        setTimeout(() => applyZoom(scanner, 1.5), 500);
-    }).catch(err => {
-        console.error(err);
-        setLoading(false);
-        // Si falla la elegida, intentar con la siguiente
-        alert(`No se pudo abrir ${cameraObj.label}. Intenta cambiar de cámara.`);
-    });
-  };
+    return (
+        <Box sx={{ 
+            position: 'relative', width: '100%', height: '500px', 
+            bgcolor: 'black', borderRadius: '16px', overflow: 'hidden', 
+            display: 'flex', flexDirection: 'column' 
+        }}>
+            
+            {/* VIDEO NATIVO */}
+            <video 
+                ref={videoRef} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                muted
+            />
 
-  const switchCamera = () => {
-    if (cameras.length < 2) return;
-    
-    const nextIndex = (currentCameraIndex + 1) % cameras.length;
-    setCurrentCameraIndex(nextIndex);
-    
-    // Detener actual e iniciar la siguiente
-    html5QrCode.stop().then(() => {
-        startCamera(html5QrCode, cameras[nextIndex]);
-    }).catch(err => {
-        // Si ya estaba detenida o error, forzamos inicio
-        startCamera(html5QrCode, cameras[nextIndex]);
-    });
-  };
+            {/* INTERFAZ VISUAL */}
+            {!loading && (
+                <>
+                    {/* Marco Rojo Láser */}
+                    <div className="scanner-overlay">
+                        <div className="scanner-box">
+                            <div className="scanner-line"></div>
+                        </div>
+                        <Typography variant="caption" className="scanner-text" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 0.5, borderRadius: 2 }}>
+                            Enfoca el cuadro denso
+                        </Typography>
+                    </div>
 
-  const applyZoom = (scanner, value) => {
-      try {
-          const track = document.querySelector("video")?.srcObject?.getVideoTracks()[0];
-          if (track && track.getCapabilities && track.getCapabilities().zoom) {
-              track.applyConstraints({ advanced: [{ zoom: value }] });
-          }
-      } catch (e) { console.log("Zoom no disponible"); }
-  };
-
-  const handleZoomChange = (e, newValue) => {
-      setZoom(newValue);
-      applyZoom(html5QrCode, newValue);
-  };
-
-  const toggleFlash = () => {
-      try {
-          const track = document.querySelector("video")?.srcObject?.getVideoTracks()[0];
-          track.applyConstraints({ advanced: [{ torch: !torchOn }] })
-               .then(() => setTorchOn(!torchOn))
-               .catch(() => alert("Flash no disponible en este lente"));
-      } catch(e) { console.log(e); }
-  };
-
-  return (
-    <Box sx={{ position: 'relative', width: '100%', height: '500px', bgcolor: 'black', borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* VIDEO */}
-      <div id="reader" style={{ flex: 1, width: '100%', height: '100%' }}></div>
-
-      {/* INTERFAZ */}
-      {!loading && (
-        <>
-          <div className="scanner-overlay">
-             <div className="scanner-box">
-                <div className="scanner-line"></div>
-             </div>
-             
-             {/* Feedback de qué cámara se está usando */}
-             <Typography variant="caption" sx={{ 
-                 position: 'absolute', top: 60, color: 'rgba(255,255,255,0.5)', 
-                 bgcolor: 'rgba(0,0,0,0.3)', px: 1, borderRadius: 1 
-             }}>
-                Lente: {activeCameraLabel || `Cámara ${currentCameraIndex + 1}`}
-             </Typography>
-
-             <Typography variant="caption" className="scanner-text" sx={{ mt: 2 }}>
-                Enfoca el código PDF417
-             </Typography>
-          </div>
-
-          {/* Botones Superiores */}
-          <Box sx={{ position: 'absolute', top: 15, right: 15, zIndex: 20, display: 'flex', gap: 1 }}>
-             <IconButton onClick={toggleFlash} sx={{ color: 'white', bgcolor: 'rgba(0,0,0,0.5)' }}>
-                {torchOn ? <FlashOnIcon /> : <FlashOffIcon />}
-             </IconButton>
-             <IconButton onClick={onClose} sx={{ color: 'white', bgcolor: 'rgba(255,50,50,0.8)' }}>
-                <CloseIcon />
-             </IconButton>
-          </Box>
-
-          {/* Controles Inferiores */}
-          <Box sx={{ 
-            position: 'absolute', bottom: 0, left: 0, width: '100%', 
-            p: 2, zIndex: 20, 
-            background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
-            display: 'flex', flexDirection: 'column', gap: 1
-          }}>
-             {/* Slider Zoom */}
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2 }}>
-                <ZoomInIcon sx={{ color: 'white' }} />
-                <Slider value={zoom} min={1} max={4} step={0.1} onChange={handleZoomChange} sx={{ color: '#2ecc71' }} />
-                <Typography color="white">{zoom}x</Typography>
-             </Box>
-             
-             {/* Botón Cambiar Cámara Mejorado */}
-             {cameras.length > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                   <IconButton 
-                        onClick={switchCamera} 
-                        sx={{ 
-                            color: 'white', border: '1px solid white', borderRadius: 4, px: 3,
-                            bgcolor: 'rgba(255,255,255,0.1)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                    {/* Botón Cerrar */}
+                    <IconButton 
+                        onClick={() => {
+                            if(controlsRef.current) controlsRef.current.stop();
+                            onClose();
                         }}
-                   >
-                      <CameraswitchIcon sx={{ mr: 1 }} /> 
-                      <Typography variant="button" sx={{fontSize: '0.8rem'}}>
-                        Cambiar Lente ({currentCameraIndex + 1}/{cameras.length})
-                      </Typography>
-                   </IconButton>
-                </Box>
-             )}
-          </Box>
-        </>
-      )}
+                        sx={{ position: 'absolute', top: 15, right: 15, color: 'white', bgcolor: 'rgba(255,50,50,0.8)', zIndex: 20 }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
 
-      {loading && (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-           <CircularProgress color="success" />
-           <Typography color="white" mt={2}>Cargando Lente HD...</Typography>
+                    {/* Selector de Cámara Manual */}
+                    <Box sx={{ 
+                        position: 'absolute', bottom: 0, left: 0, width: '100%', 
+                        p: 2, zIndex: 20, 
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
+                        display: 'flex', flexDirection: 'column', gap: 1
+                    }}>
+                        <Typography variant="caption" sx={{ color: '#aaa', ml: 1 }}>Cámara:</Typography>
+                        
+                        <Select
+                            value={selectedDeviceId}
+                            onChange={(e) => setSelectedDeviceId(e.target.value)}
+                            variant="standard"
+                            disableUnderline
+                            sx={{ 
+                                color: 'white', 
+                                '.MuiSelect-icon': { color: 'white' },
+                                bgcolor: 'rgba(255,255,255,0.15)',
+                                px: 2, py: 0.5, borderRadius: 2,
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            {devices.map((device, index) => (
+                                <MenuItem key={device.deviceId} value={device.deviceId}>
+                                    {device.label || `Cámara ${index + 1}`}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </Box>
+                </>
+            )}
+
+            {loading && (
+                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                    <CircularProgress color="success" />
+                    <Typography color="white" mt={2}>Iniciando cámara...</Typography>
+                </Box>
+            )}
         </Box>
-      )}
-    </Box>
-  );
+    );
 }
