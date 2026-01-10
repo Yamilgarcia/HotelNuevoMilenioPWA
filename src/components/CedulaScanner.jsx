@@ -3,7 +3,7 @@ import { Box, Typography, Button, CircularProgress, Card, CardContent } from '@m
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
-import RotateRightIcon from '@mui/icons-material/RotateRight';
+import PublishedWithChangesIcon from '@mui/icons-material/PublishedWithChanges';
 
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
@@ -15,7 +15,7 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // --- HERRAMIENTA: PREPARAR IMAGEN (ROTAR Y REDIMENSIONAR) ---
+  // --- PLAN DE RESPALDO: PREPARACIÓN MANUAL DE IMAGEN (SOLO PARA PC/FOTOS DIFÍCILES) ---
   const prepareImage = (file, rotation) => {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -24,20 +24,19 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                
-                // Forzamos un tamaño bueno para PC (ni muy grande ni muy chico)
+                // 1200px es seguro y rápido
                 const targetSize = 1200; 
                 let width = img.width;
                 let height = img.height;
                 
-                // Escalar manteniendo proporción
+                // Escalar
                 if (width > height) {
                     if (width > targetSize) { height *= targetSize / width; width = targetSize; }
                 } else {
                     if (height > targetSize) { width *= targetSize / height; height = targetSize; }
                 }
 
-                // Intercambiar dimensiones si rotamos 90 o 270
+                // Rotar dimensiones
                 if (rotation === 90 || rotation === 270) {
                     canvas.width = height;
                     canvas.height = width;
@@ -50,12 +49,12 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
                 ctx.fillStyle = "white";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // Magia de rotación
+                // Rotar contexto
                 ctx.translate(canvas.width / 2, canvas.height / 2);
                 ctx.rotate(rotation * Math.PI / 180);
                 ctx.drawImage(img, -width / 2, -height / 2, width, height);
 
-                // Convertir a B/N para ayudar a la PC (Alto Contraste)
+                // Filtro B/N (Alto Contraste)
                 const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const data = imgData.data;
                 for (let i = 0; i < data.length; i += 4) {
@@ -75,53 +74,55 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    event.target.value = '';
+    event.target.value = ''; // Limpiar para permitir reintentos
 
     setLoading(true);
     setErrorMsg("");
-    setStatus("Analizando...");
+    setStatus("Iniciando motor...");
 
-    // Configuración para activar el Chip Nativo en celulares
+    // 🚀 AQUÍ ESTÁ LA MAGIA DEL CÓDIGO VIEJO 🚀
+    // Activamos experimentalFeatures para que use el chip nativo de Android
     const html5QrCode = new Html5Qrcode("reader-hidden", {
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         verbose: false
     });
 
     try {
-        // --- FASE 1: INTENTO RÁPIDO (Ideal para Celulares) ---
-        // Le pasamos la foto tal cual. Si el navegador es inteligente (Android/iOS), la leerá.
+        // --- FASE 1: LECTURA DIRECTA (ANDROID NATIVO) ---
+        // Esto debería funcionar al instante en tu celular con la foto vertical
         try {
-            console.log("🔵 Intento 1: Nativo directo");
+            console.log("🔵 Fase 1: Intento directo con Chip Nativo...");
+            setStatus("Analizando con Android...");
             const res = await html5QrCode.scanFileV2(file, true);
             if (res && res.length > 15) {
-                console.log("🟢 Éxito Nativo");
+                console.log("🟢 ¡Éxito Nativo!");
                 onScanSuccess(res);
                 return;
             }
         } catch (e) {
-            console.log("🔸 Falló nativo, iniciando rotaciones para PC...");
+            console.log("🔸 Falló nativo, activando modo compatibilidad PC...");
         }
 
-        // --- FASE 2: INTENTO INTELIGENTE (Ideal para PC) ---
-        // Si el nativo falló, probamos rotar la imagen manualmente.
-        // Probamos: Normal (0°), Vertical (90°), Invertido (270°)
+        // --- FASE 2: MODO COMPATIBILIDAD (ROTACIÓN MANUAL) ---
+        // Si falla (ej: en PC), rotamos la imagen manualmente
         const angles = [0, 90, 270];
 
         for (let angle of angles) {
             setStatus(`Probando ángulo ${angle}°...`);
-            console.log(`🔵 Probando rotación manual: ${angle}°`);
+            console.log(`🔵 Fase 2: Probando ${angle}°`);
             
             const rotatedFile = await prepareImage(file, angle);
             
             try {
+                // Incluso aquí usamos el chip nativo si está disponible
                 const res = await html5QrCode.scanFileV2(rotatedFile, true);
                 if (res && res.length > 15) {
-                    console.log(`🟢 Éxito en ${angle}°`);
+                    console.log(`🟢 ¡Éxito en ${angle}°!`);
                     onScanSuccess(res);
                     return;
                 }
             } catch (e) {
-                // Siguiente ángulo
+                // Continuar al siguiente ángulo
             }
         }
 
@@ -130,8 +131,9 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     } catch (err) {
         console.error(err);
         setLoading(false);
-        setErrorMsg("⚠️ No se pudo leer la cédula.");
+        setErrorMsg("⚠️ No se pudo leer. Intenta acercarte o usar más luz.");
     } finally {
+        // Limpieza vital
         try { html5QrCode.clear(); } catch(e) {}
     }
   };
@@ -142,14 +144,14 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <CreditCardIcon sx={{ color: '#4ade80', fontSize: 30 }} />
-          <Typography variant="h5" fontWeight="bold">Escáner Universal</Typography>
+          <Typography variant="h5" fontWeight="bold">Escáner Pro</Typography>
         </Box>
 
         {loading ? (
           <Box sx={{ py: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <CircularProgress size={60} sx={{ color: '#4ade80' }} />
             <Box sx={{ mt: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <RotateRightIcon sx={{ color: '#fbbf24', animation: 'spin 2s linear infinite' }} />
+                <PublishedWithChangesIcon sx={{ color: '#fbbf24', animation: 'spin 2s linear infinite' }} />
                 <Typography sx={{ color: '#fbbf24', fontWeight: 'bold' }}>{status}</Typography>
             </Box>
             <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -189,17 +191,20 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
             {errorMsg && (
               <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(239, 68, 68, 0.15)', borderRadius: 2, border: '1px solid #ef4444' }}>
                 <Typography color="#fca5a5" variant="body2" fontWeight="bold">{errorMsg}</Typography>
-                <Typography color="#fca5a5" variant="caption">Prueba rotar la imagen o usar mejor luz.</Typography>
+                <Typography color="#fca5a5" variant="caption">Consejo: Usa Flash y toma la foto centrada.</Typography>
               </Box>
             )}
           </>
         )}
 
         {/* INPUTS OCULTOS */}
+        {/* capture="environment" obliga a Android a abrir la cámara trasera */}
         <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+        
+        {/* Input normal para galería */}
         <input type="file" accept="image/*" ref={galleryInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
         
-        {/* MOTOR OCULTO */}
+        {/* Div oculto OBLIGATORIO para que html5-qrcode funcione */}
         <div id="reader-hidden" style={{ display: 'none' }}></div>
 
         <Button onClick={onClose} variant="text" color="inherit" sx={{ mt: 3, color: '#94a3b8' }}>
