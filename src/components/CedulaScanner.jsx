@@ -13,36 +13,60 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
 
   // Esta función se ejecuta cuando tomas la foto y le das "Aceptar"
   const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const file = event.target.files[0];
+  if (!file) return;
 
-    setLoading(true);
-    setErrorMsg("");
+  setLoading(true);
+  setErrorMsg("");
 
-    try {
-      // Instanciamos el motor de escaneo (invisible)
-      const html5QrCode = new Html5Qrcode("reader-hidden");
+  const html5QrCode = new Html5Qrcode("reader-hidden");
 
-      // Analizamos la foto con la máxima precisión
-      const decodedText = await html5QrCode.scanFileV2(file, true);
+  try {
+    // Cargar imagen en memoria
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
 
-      if (decodedText && decodedText.length > 15) {
-        // ¡Éxito! Limpiamos y enviamos los datos
-        html5QrCode.clear();
-        onScanSuccess(decodedText);
-      } else {
-        throw new Error("Lectura corta");
-      }
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = rej;
+    });
 
-    } catch (err) {
-      console.error("Error escaneo:", err);
-      setLoading(false);
-      setErrorMsg("No se pudo leer el código PDF417. Intenta de nuevo.");
-      
-      // Limpiamos el input para permitir reintentar con la misma foto si quisiera
-      event.target.value = ''; 
+    // Crear canvas HD
+    const canvas = document.createElement("canvas");
+    const scale = 2; // 🔥 clave para PDF417
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // Convertir canvas a archivo
+    const blob = await new Promise(resolve =>
+      canvas.toBlob(resolve, "image/png")
+    );
+
+    const processedFile = new File([blob], "scan.png", {
+      type: "image/png"
+    });
+
+    // Escanear imagen PROCESADA
+    const result = await html5QrCode.scanFile(processedFile, false);
+
+    if (result && result.length > 15) {
+      await html5QrCode.clear();
+      onScanSuccess(result);
+    } else {
+      throw new Error("Lectura inválida");
     }
-  };
+
+  } catch (err) {
+    console.error("Error escaneo:", err);
+    setErrorMsg("No se pudo leer la cédula. Toma la foto más cerca.");
+    setLoading(false);
+    event.target.value = '';
+  }
+};
+
 
   const triggerCamera = () => {
     fileInputRef.current.click();
