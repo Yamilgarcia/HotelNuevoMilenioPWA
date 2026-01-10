@@ -1,224 +1,70 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from "html5-qrcode";
-import { Box, Typography, IconButton, CircularProgress, Button } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
-import FlashOffIcon from '@mui/icons-material/FlashOff';
-
-import './CedulaScanner.css';
+import React, { useEffect, useState } from 'react';
+import { Html5QrcodeScanner } from "html5-qrcode";
+import { Box, Typography, Button } from '@mui/material';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const qrRef = useRef(null);
-  const readerId = useRef(`reader-${crypto.randomUUID()}`);
-
-  const [loading, setLoading] = useState(true);
-  const [torchOn, setTorchOn] = useState(false);
-  const [torchSupported, setTorchSupported] = useState(false);
-  const [cameras, setCameras] = useState([]);
-  const [camIndex, setCamIndex] = useState(0);
-  const [noCamFound, setNoCamFound] = useState(false);
-
-  const scannerConfig = {
-    fps: 15,
-    qrbox: { width: 340, height: 220 },
-    disableFlip: true,
-    videoConstraints: {
-      facingMode: "environment",
-      focusMode: "continuous",
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
-    }
-  };
+  const [mensaje, setMensaje] = useState("Iniciando cámara HD...");
 
   useEffect(() => {
-    qrRef.current = new Html5Qrcode(readerId.current);
+    const scanner = new Html5QrcodeScanner(
+      "reader", 
+      { 
+        fps: 10, 
+        qrbox: { width: 300, height: 250 }, 
+        aspectRatio: 1.0,
+        disableFlip: false, 
+        // ⚠️ ESTO ES LO NUEVO: FORZAMOS CALIDAD HD
+        videoConstraints: {
+            facingMode: "environment", // Cámara trasera
+            width: { min: 1024, ideal: 1280, max: 1920 }, // Resolución Alta
+            height: { min: 576, ideal: 720, max: 1080 },
+            focusMode: "continuous" // Autoenfoque (si el navegador lo permite)
+        }
+      },
+      false
+    );
 
-    const initScanner = async () => {
-      try {
-        const devices = await Html5Qrcode.getCameras();
-        if (!devices?.length) throw new Error("No hay cámaras");
-
-        // Solo traseras
-        const backCameras = devices.filter(d =>
-          /back|rear|trasera|environment/i.test(d.label)
-        );
-        if (!backCameras.length) throw new Error("No se encontró cámara trasera");
-
-        setCameras(backCameras);
-        setLoading(false);
-
-        // Intento automático de enfoque (primer cámara)
-        tryCamera(backCameras[0]);
-      } catch (err) {
-        console.error("Error al iniciar cámara:", err);
-        setLoading(false);
-        setNoCamFound(true);
+    const onDetect = (decodedText) => {
+      // Ignorar códigos cortos (barras pequeñas)
+      if (decodedText.length < 15) {
+        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro denso.");
+      } else {
+        scanner.clear();
+        onScanSuccess(decodedText);
       }
     };
 
-    initScanner();
+    const onError = (err) => {
+      // Sin acción en error
+    };
+
+    scanner.render(onDetect, onError);
 
     return () => {
-      if (qrRef.current?.isScanning) {
-        qrRef.current.stop().catch(() => {});
-      }
+      scanner.clear().catch(err => console.error("Error limpieza", err));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const tryCamera = async (camera) => {
-    if (!qrRef.current) return;
-    try {
-      await qrRef.current.start(
-        { deviceId: { exact: camera.id } },
-        scannerConfig,
-        (decodedText) => {
-          if (decodedText && decodedText.length > 25) {
-            qrRef.current.stop().then(() => onScanSuccess(decodedText));
-          }
-        }
-      );
-
-      // Detectar soporte de linterna
-      try {
-        await qrRef.current.applyVideoConstraints({ advanced: [{ torch: false }] });
-        setTorchSupported(true);
-      } catch {
-        setTorchSupported(false);
-      }
-    } catch (err) {
-      console.warn("Fallo con cámara:", camera.label, err);
-    }
-  };
-
-  const toggleFlash = async () => {
-    if (!qrRef.current || !torchSupported) return;
-    try {
-      await qrRef.current.applyVideoConstraints({ advanced: [{ torch: !torchOn }] });
-      setTorchOn(prev => !prev);
-    } catch (err) {
-      console.warn("Linterna no soportada", err);
-    }
-  };
-
-  const switchCamera = async () => {
-    if (!cameras.length || !qrRef.current) return;
-
-    await qrRef.current.stop().catch(() => {});
-    const nextIndex = (camIndex + 1) % cameras.length;
-    setCamIndex(nextIndex);
-    tryCamera(cameras[nextIndex]);
-  };
+  }, [onScanSuccess]);
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        width: '100%',
-        height: 420,
-        bgcolor: 'black',
-        borderRadius: 2,
-        overflow: 'hidden'
-      }}
-    >
-      {/* Video */}
-      <div
-        id={readerId.current}
-        style={{ width: '100%', height: '100%' }}
-      />
+    <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        Escaneando Cédula (HD)
+      </Typography>
+      
+      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
+        {mensaje}
+      </Typography>
+      
+      {/* Mensaje de ayuda técnica */}
+      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: '#aaa', fontSize: '0.7rem' }}>
+        Tip: Mueve el celular adelante y atrás lentamente para enfocar.
+      </Typography>
 
-      {/* Loading */}
-      {loading && (
-        <Box
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 2,
-            bgcolor: 'rgba(0,0,0,0.6)'
-          }}
-        >
-          <CircularProgress color="success" />
-          <Typography color="white" variant="body2">
-            Iniciando cámara HD…
-          </Typography>
-        </Box>
-      )}
-
-      {/* Overlay */}
-      {!loading && !noCamFound && (
-        <div className="scanner-overlay">
-          <div className="scanner-box">
-            <div className="scanner-line" />
-          </div>
-          <Typography className="scanner-text">
-            Enfoca el código trasero de la cédula
-          </Typography>
-        </div>
-      )}
-
-      {/* Controles */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          zIndex: 20,
-          display: 'flex',
-          gap: 1
-        }}
-      >
-        {torchSupported && (
-          <IconButton
-            onClick={toggleFlash}
-            sx={{ color: 'white', bgcolor: 'rgba(0,0,0,0.5)' }}
-          >
-            {torchOn ? <FlashOnIcon /> : <FlashOffIcon />}
-          </IconButton>
-        )}
-
-        {cameras.length > 1 && (
-          <Button
-            variant="contained"
-            size="small"
-            onClick={switchCamera}
-            sx={{ bgcolor: 'rgba(255,255,255,0.3)', color: 'black' }}
-          >
-            Cambiar cámara
-          </Button>
-        )}
-
-        <IconButton
-          onClick={onClose}
-          sx={{ color: 'white', bgcolor: 'rgba(255,0,0,0.7)' }}
-        >
-          <CloseIcon />
-        </IconButton>
-      </Box>
-
-      {noCamFound && (
-        <Box
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            bgcolor: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            color: 'white',
-            textAlign: 'center',
-            px: 2
-          }}
-        >
-          <Typography>No se encontró cámara trasera compatible 😢</Typography>
-          <Button onClick={onClose} variant="contained" sx={{ mt: 2 }}>Cerrar</Button>
-        </Box>
-      )}
+      <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
+      
+      <Button onClick={onClose} variant="outlined" color="error" sx={{ mt: 2 }}>
+        Cancelar
+      </Button>
     </Box>
   );
 }
