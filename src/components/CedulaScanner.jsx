@@ -5,71 +5,43 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
+import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'; // Icono para galería
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const fileInputRef = useRef(null);
+  
+  // Usamos dos referencias diferentes para controlar los dos comportamientos
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
-  // Esta función se ejecuta cuando tomas la foto y le das "Aceptar"
+  // Función común para procesar la imagen (venga de cámara o galería)
   const handleFileChange = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  setLoading(true);
-  setErrorMsg("");
+    setLoading(true);
+    setErrorMsg("");
 
-  const html5QrCode = new Html5Qrcode("reader-hidden");
+    try {
+      const html5QrCode = new Html5Qrcode("reader-hidden");
 
-  try {
-    // Cargar imagen en memoria
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
+      // Analizamos la foto con máxima precisión
+      const decodedText = await html5QrCode.scanFileV2(file, true);
 
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-    });
+      if (decodedText && decodedText.length > 15) {
+        html5QrCode.clear();
+        onScanSuccess(decodedText);
+      } else {
+        throw new Error("Lectura corta");
+      }
 
-    // Crear canvas HD
-    const canvas = document.createElement("canvas");
-    const scale = 2; // 🔥 clave para PDF417
-    canvas.width = img.width * scale;
-    canvas.height = img.height * scale;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-    // Convertir canvas a archivo
-    const blob = await new Promise(resolve =>
-      canvas.toBlob(resolve, "image/png")
-    );
-
-    const processedFile = new File([blob], "scan.png", {
-      type: "image/png"
-    });
-
-    // Escanear imagen PROCESADA
-    const result = await html5QrCode.scanFile(processedFile, false);
-
-    if (result && result.length > 15) {
-      await html5QrCode.clear();
-      onScanSuccess(result);
-    } else {
-      throw new Error("Lectura inválida");
+    } catch (err) {
+      console.error("Error escaneo:", err);
+      setLoading(false);
+      setErrorMsg("No se pudo leer el código PDF417. Intenta de nuevo.");
+      event.target.value = ''; // Limpiar input para permitir reintentos
     }
-
-  } catch (err) {
-    console.error("Error escaneo:", err);
-    setErrorMsg("No se pudo leer la cédula. Toma la foto más cerca.");
-    setLoading(false);
-    event.target.value = '';
-  }
-};
-
-
-  const triggerCamera = () => {
-    fileInputRef.current.click();
   };
 
   return (
@@ -95,36 +67,53 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
           </Box>
         ) : (
           <>
-            <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 4 }}>
-              Toma una foto clara de la parte trasera de la cédula.
+            <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 3 }}>
+              Elige cómo quieres escanear la cédula:
             </Typography>
 
-            {/* BOTÓN GIGANTE DE CÁMARA */}
-            <Button
-              onClick={triggerCamera}
-              variant="contained"
-              sx={{
-                width: 180, height: 180, borderRadius: '50%',
-                bgcolor: '#334155', 
-                border: '4px solid #4ade80',
-                display: 'flex', flexDirection: 'column', gap: 1,
-                transition: 'transform 0.2s',
-                '&:hover': { bgcolor: '#475569', transform: 'scale(1.05)' },
-                boxShadow: '0 0 20px rgba(74, 222, 128, 0.3)'
-              }}
-            >
-              <CameraAltIcon sx={{ fontSize: 60, color: '#fff' }} />
-              <Typography variant="button" fontWeight="bold">TOMAR FOTO</Typography>
-            </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                
+                {/* OPCIÓN 1: CÁMARA (BOTÓN GIGANTE) */}
+                <Button
+                    onClick={() => cameraInputRef.current.click()}
+                    variant="contained"
+                    sx={{
+                        width: 160, height: 160, borderRadius: '50%',
+                        bgcolor: '#334155', 
+                        border: '4px solid #4ade80',
+                        display: 'flex', flexDirection: 'column', gap: 1,
+                        transition: 'transform 0.2s',
+                        '&:hover': { bgcolor: '#475569', transform: 'scale(1.05)' },
+                        boxShadow: '0 0 20px rgba(74, 222, 128, 0.3)'
+                    }}
+                >
+                    <CameraAltIcon sx={{ fontSize: 50, color: '#fff' }} />
+                    <Typography variant="button" fontWeight="bold">TOMAR FOTO</Typography>
+                </Button>
 
-            {/* MENSAJE DE ERROR SI FALLA */}
+                {/* OPCIÓN 2: GALERÍA (BOTÓN SECUNDARIO) */}
+                <Button 
+                    onClick={() => galleryInputRef.current.click()}
+                    variant="outlined"
+                    startIcon={<PhotoLibraryIcon />}
+                    sx={{ 
+                        color: 'white', borderColor: 'rgba(255,255,255,0.3)', 
+                        borderRadius: 3, px: 3, py: 1,
+                        '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.05)' }
+                    }}
+                >
+                    Subir desde Galería
+                </Button>
+            </Box>
+
+            {/* MENSAJE DE ERROR */}
             {errorMsg && (
               <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(239, 68, 68, 0.2)', borderRadius: 2, border: '1px solid #ef4444' }}>
                 <Typography color="#fca5a5" variant="body2" fontWeight="bold">
                   ❌ {errorMsg}
                 </Typography>
                 <Typography color="#fca5a5" variant="caption">
-                  Asegúrate de usar flash y enfocar bien.
+                  Asegúrate de que la foto tenga buena luz y se vea el código completo.
                 </Typography>
               </Box>
             )}
@@ -145,17 +134,28 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
           </Box>
         )}
 
-        {/* INPUT OCULTO (El motor real) */}
+        {/* --- INPUTS OCULTOS --- */}
+        
+        {/* Input 1: Fuerza la CÁMARA TRASERA */}
         <input
           type="file"
           accept="image/*"
-          capture="environment" // Esto obliga a usar la cámara trasera nativa
-          ref={fileInputRef}
+          capture="environment" 
+          ref={cameraInputRef}
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />
 
-        {/* ELEMENTO HTML NECESARIO PARA LA LIBRERÍA (INVISIBLE) */}
+        {/* Input 2: Permite GALERÍA (Sin atributo capture) */}
+        <input
+          type="file"
+          accept="image/*"
+          ref={galleryInputRef}
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+
+        {/* MOTOR INVISIBLE */}
         <div id="reader-hidden" style={{ display: 'none' }}></div>
 
         {/* BOTÓN CANCELAR */}
