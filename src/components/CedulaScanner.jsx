@@ -80,26 +80,22 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     }
   };
 
-  // Función heurística para sacar los datos del texto bruto
-  // Función heurística MEJORADA para sacar los datos del texto bruto
+  // Función heurística BLINDADA contra etiquetas y texto basura
   const parseTextoCedula = (text) => {
-    // 1. Limpiamos las líneas: quitamos espacios extra, pasamos a mayúsculas 
-    // y filtramos líneas con basura o muy cortas (menos de 3 letras)
+    // 1. Limpiamos las líneas
     const lineas = text.split('\n')
         .map(l => l.trim().toUpperCase())
         .filter(l => l.length > 2);
     
-    // Imprimir en consola para que veas exactamente qué está leyendo la cámara
     console.log("Líneas detectadas por OCR:", lineas);
 
     let resultado = {
         cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
     };
 
-    // 2. Extraer Cédula (Buscamos patrón nica: 000-000000-0000X)
+    // 2. Extraer Cédula (Se mantiene igual, funciona bien)
     const regexCedula = /\b\d{3}[-\s]?\d{6}[-\s]?\d{4}[A-Z]\b/;
     const matchCedula = text.toUpperCase().match(regexCedula);
-    
     if (matchCedula) {
         let limpia = matchCedula[0].replace(/\s/g, '');
         if (limpia.length === 14) {
@@ -108,36 +104,53 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         resultado.cedula = limpia;
     }
 
-    // 3. Búsqueda Difusa de Nombres y Apellidos
-    for (let i = 0; i < lineas.length; i++) {
-        const lineaActual = lineas[i];
+    // LISTA NEGRA: Estas palabras jamás deben guardarse como nombres o apellidos
+    const listaNegra = /NOMBRES?|APELLIDOS?|FECHA|NACIMIENTO|LUGAR|SEXO|EMISION|EXPIRACION|DIRECTOR|CEDULA|IDENTIDAD/g;
 
-        // Buscar etiqueta de NOMBRES (tolerando errores comunes de OCR)
-        // Coincide con: NOMBRES, N0MBRES, OMBRES, NOMB, etc.
-        if (/(N[O0]MB|OMBR|N0MB)/.test(lineaActual)) {
-            if (lineas[i + 1]) {
-                // Limpiamos la siguiente línea para que solo queden letras y espacios (quitamos números o símbolos basura)
-                const textoNombres = lineas[i + 1].replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-                const partesNombres = textoNombres.split(' ');
-                
-                if (partesNombres.length > 0 && textoNombres.length > 2) {
-                    resultado.primerNombre = partesNombres[0] || '';
-                    resultado.segundoNombre = partesNombres.slice(1).join(' ') || '';
-                }
+    for (let i = 0; i < lineas.length; i++) {
+        let linea = lineas[i];
+
+        // --- BUSCAR NOMBRES ---
+        if (linea.includes('NOMBRE') || linea.includes('N0MBRE') || linea.includes('NOMBR')) {
+            // Borramos la palabra "NOMBRES" por si el OCR leyó etiqueta y nombre en la misma línea
+            let textoExtraido = linea.replace(/NOMBRES?|N0MBRES?|NOMBR/g, '').trim();
+            
+            // Si la línea quedó casi vacía, el nombre real está en la línea de abajo
+            if (textoExtraido.length < 3 && lineas[i + 1]) {
+                textoExtraido = lineas[i + 1];
+            }
+
+            // MAGIA AQUÍ: Borramos cualquier palabra de la lista negra por si agarró "APELLIDOS" por error
+            textoExtraido = textoExtraido.replace(listaNegra, '').trim();
+
+            if (textoExtraido.length >= 3) {
+                // Limpiamos caracteres raros y guardamos
+                textoExtraido = textoExtraido.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+                const partes = textoExtraido.split(' ');
+                resultado.primerNombre = partes[0] || '';
+                resultado.segundoNombre = partes.slice(1).join(' ') || '';
             }
         }
 
-        // Buscar etiqueta de APELLIDOS (tolerando erroresfffffffffffff)
-        // Coincide con: APELLIDOS, APEL, PELL, APELL1D0S
-        if (/(APEL|PELL|AP[EÉ]LL)/.test(lineaActual)) {
-            if (lineas[i + 1]) {
-                const textoApellidos = lineas[i + 1].replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-                const partesApellidos = textoApellidos.split(' ');
-                
-                if (partesApellidos.length > 0 && textoApellidos.length > 2) {
-                    resultado.primerApellido = partesApellidos[0] || '';
-                    resultado.segundoApellido = partesApellidos.slice(1).join(' ') || '';
-                }
+        // --- BUSCAR APELLIDOS ---
+        if (linea.includes('APELLIDO') || linea.includes('PELLIDO') || linea.includes('APEL')) {
+            // Borramos la palabra "APELLIDOS"
+            let textoExtraido = linea.replace(/APELLIDOS?|PELLIDOS?|APEL/g, '').trim();
+            
+            // Si la línea quedó casi vacía, el apellido está en la línea de abajo
+            if (textoExtraido.length < 3 && lineas[i + 1]) {
+                textoExtraido = lineas[i + 1];
+            }
+
+            // Evitamos que guarde "FECHA DE NACIMIENTO" como apellido
+            textoExtraido = textoExtraido.replace(listaNegra, '').trim();
+
+            if (textoExtraido.length >= 3) {
+                // Limpiamos y guardamos
+                textoExtraido = textoExtraido.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+                const partes = textoExtraido.split(' ');
+                resultado.primerApellido = partes[0] || '';
+                resultado.segundoApellido = partes.slice(1).join(' ') || '';
             }
         }
     }
