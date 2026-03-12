@@ -80,20 +80,23 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     }
   };
 
-  // Función heurística adaptada EXACTAMENTE a la cédula nicaragüense
+  // Función heurística para sacar los datos del texto bruto
+  // Función heurística MEJORADA para sacar los datos del texto bruto
   const parseTextoCedula = (text) => {
-    // 1. Separamos por líneas, limpiamos espacios y pasamos todo a mayúsculas
+    // 1. Limpiamos las líneas: quitamos espacios extra, pasamos a mayúsculas 
+    // y filtramos líneas con basura o muy cortas (menos de 3 letras)
     const lineas = text.split('\n')
         .map(l => l.trim().toUpperCase())
-        .filter(l => l.length > 2); // Ignoramos líneas vacías o de 1-2 letras (basura visual)
+        .filter(l => l.length > 2);
     
+    // Imprimir en consola para que veas exactamente qué está leyendo la cámara
     console.log("Líneas detectadas por OCR:", lineas);
 
     let resultado = {
         cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
     };
 
-    // 2. Extraer Cédula (La parte que ya funcionaba bien)
+    // 2. Extraer Cédula (Buscamos patrón nica: 000-000000-0000X)
     const regexCedula = /\b\d{3}[-\s]?\d{6}[-\s]?\d{4}[A-Z]\b/;
     const matchCedula = text.toUpperCase().match(regexCedula);
     
@@ -105,57 +108,36 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         resultado.cedula = limpia;
     }
 
-    // 3. Extraer Nombres y Apellidos (Estrategia adaptada a la foto)
+    // 3. Búsqueda Difusa de Nombres y Apellidos
     for (let i = 0; i < lineas.length; i++) {
-        let linea = lineas[i];
+        const lineaActual = lineas[i];
 
-        // --- BÚSQUEDA DE NOMBRES ---
-        // Buscamos la palabra "NOMBRES" o variaciones por mala lectura
-        if (linea.includes('NOMBRE') || linea.includes('N0MBRE') || linea.includes('NOMBR')) {
-            let textoNombres = "";
-            
-            // Caso A: El OCR leyó "Nombres JUAN PEREZ" en la misma línea
-            let nombresLimpios = linea.replace(/N[O0]MBRES?/, '').trim();
-            if (nombresLimpios.length > 3) {
-                textoNombres = nombresLimpios;
-            } 
-            // Caso B (Lo más normal): El OCR leyó "Nombres" en una línea y "JUAN PEREZ" en la siguiente
-            else if (lineas[i + 1]) {
-                textoNombres = lineas[i + 1];
-            }
-
-            // Limpiamos la basura visual (dejamos solo letras y espacios)
-            textoNombres = textoNombres.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-            const partes = textoNombres.split(' ');
-            
-            if (partes.length > 0) {
-                resultado.primerNombre = partes[0] || '';
-                resultado.segundoNombre = partes.slice(1).join(' ') || '';
+        // Buscar etiqueta de NOMBRES (tolerando errores comunes de OCR)
+        // Coincide con: NOMBRES, N0MBRES, OMBRES, NOMB, etc.
+        if (/(N[O0]MB|OMBR|N0MB)/.test(lineaActual)) {
+            if (lineas[i + 1]) {
+                // Limpiamos la siguiente línea para que solo queden letras y espacios (quitamos números o símbolos basura)
+                const textoNombres = lineas[i + 1].replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+                const partesNombres = textoNombres.split(' ');
+                
+                if (partesNombres.length > 0 && textoNombres.length > 2) {
+                    resultado.primerNombre = partesNombres[0] || '';
+                    resultado.segundoNombre = partesNombres.slice(1).join(' ') || '';
+                }
             }
         }
 
-        // --- BÚSQUEDA DE APELLIDOS ---
-        // Buscamos "APELLIDOS", "APELL1DOS", etc.
-        if (linea.includes('APELLIDO') || linea.includes('PELLIDO') || linea.includes('APEL')) {
-            let textoApellidos = "";
-            
-            // Caso A: Leyó todo en una línea
-            let apellidosLimpios = linea.replace(/APELLIDOS?|PELLIDOS?|APELL1DOS?/, '').trim();
-            if (apellidosLimpios.length > 3) {
-                textoApellidos = apellidosLimpios;
-            } 
-            // Caso B: Leyó el dato en la línea de abajo (como se ve en la foto)
-            else if (lineas[i + 1]) {
-                textoApellidos = lineas[i + 1];
-            }
-
-            // Limpiamos basura visual
-            textoApellidos = textoApellidos.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-            const partes = textoApellidos.split(' ');
-            
-            if (partes.length > 0) {
-                resultado.primerApellido = partes[0] || '';
-                resultado.segundoApellido = partes.slice(1).join(' ') || '';
+        // Buscar etiqueta de APELLIDOS (tolerando erroresfffffffffffff)
+        // Coincide con: APELLIDOS, APEL, PELL, APELL1D0S
+        if (/(APEL|PELL|AP[EÉ]LL)/.test(lineaActual)) {
+            if (lineas[i + 1]) {
+                const textoApellidos = lineas[i + 1].replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+                const partesApellidos = textoApellidos.split(' ');
+                
+                if (partesApellidos.length > 0 && textoApellidos.length > 2) {
+                    resultado.primerApellido = partesApellidos[0] || '';
+                    resultado.segundoApellido = partesApellidos.slice(1).join(' ') || '';
+                }
             }
         }
     }
