@@ -7,7 +7,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-import CedulaScanner from '../../../components/CedulaScanner'; 
+import CedulaScanner from '../../../components/CedulaScanner'; // Ajusta la ruta según tu proyecto
 
 export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   const [form, setForm] = useState({
@@ -31,59 +31,28 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
     return precioBase;
   }, [habitacion, form.personas]);
 
-  // --- NUEVA LÓGICA DE PARSEO (Separación de datos) ---
-  const handleScanData = (rawData) => {
-    // El formato crudo es: SERIAL<CEDULA<APELLIDO1<APELLIDO2<NOMBRE1<NOMBRE2<...
-    // Ejemplo: 12753150<1231206031000A<GARCIA<ROMERO<JOSE<YAMIL<...
-    
-    try {
-        const partes = rawData.split('<');
+  // --- NUEVA LÓGICA OCR ---
+  const handleScanData = (datosExtraidos) => {
+    setForm(prev => ({
+        ...prev,
+        cedula: datosExtraidos.cedula || prev.cedula,
+        primerNombre: datosExtraidos.primerNombre || prev.primerNombre,
+        segundoNombre: datosExtraidos.segundoNombre || prev.segundoNombre,
+        primerApellido: datosExtraidos.primerApellido || prev.primerApellido,
+        segundoApellido: datosExtraidos.segundoApellido || prev.segundoApellido
+    }));
 
-        // Validamos que tenga suficientes partes para ser una cédula real
-        if (partes.length < 5) {
-            alert("Lectura incompleta. Intenta escanear de nuevo.");
-            return;
-        }
-
-        // 1. Extraer y Formatear Cédula (índice 1)
-        // Viene así: 1231206031000A -> Queremos: 123-120603-1000A
-        const rawCedula = partes[1];
-        let cedulaFormateada = rawCedula;
-        if (rawCedula.length === 14) { // 13 dígitos + 1 letra
-             cedulaFormateada = `${rawCedula.substring(0,3)}-${rawCedula.substring(3,9)}-${rawCedula.substring(9)}`;
-        }
-
-        // 2. Extraer Nombres (Índices 2, 3, 4, 5)
-        const apellido1 = partes[2] || "";
-        const apellido2 = partes[3] || "";
-        const nombre1   = partes[4] || "";
-        // A veces el segundo nombre no existe o es el lugar de nacimiento, validamos que sea texto simple
-        let nombre2   = partes[5] || "";
-        
-        // Si el "segundo nombre" tiene números o guiones, es probable que sea una fecha/lugar, así que lo dejamos vacío
-        if (nombre2.match(/[0-9]/)) nombre2 = ""; 
-
-        // 3. Rellenar el formulario MÁGICAMENTE
-        setForm(prev => ({
-            ...prev,
-            cedula: cedulaFormateada,
-            primerApellido: apellido1,
-            segundoApellido: apellido2,
-            primerNombre: nombre1,
-            segundoNombre: nombre2
-        }));
-
-        setShowScanner(false); // Éxito: cerrar cámara
-        // (Opcional) Reproducir un pitido o vibrar
-        if (navigator.vibrate) navigator.vibrate(200);
-
-    } catch (e) {
-        console.error("Error al procesar datos:", e);
-        alert("Error procesando los datos de la cédula.");
+    // Validar cédula extraída
+    if (datosExtraidos.cedula && !validarCedulaNica(datosExtraidos.cedula)) {
+        setErrorCedula(true);
+    } else {
+        setErrorCedula(false);
     }
+
+    setShowScanner(false);
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Vibración de éxito doble
   };
 
-  // ... (Resto de funciones: validarCedulaNica, handleChange, handleSubmit...)
   const validarCedulaNica = (cedula) => /^\d{3}-\d{6}-\d{4}[A-Z]$/.test(cedula);
 
   const handleChange = (e) => {
@@ -129,7 +98,6 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
             <CedulaScanner onScanSuccess={handleScanData} onClose={() => setShowScanner(false)} />
         ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {/* ... (TUS CAMPOS DE SIEMPRE) ... */}
                 <Typography variant="subtitle2" sx={{ color: '#64748b', mb: -1, fontWeight: 'bold' }}>IDENTIFICACIÓN</Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <TextField

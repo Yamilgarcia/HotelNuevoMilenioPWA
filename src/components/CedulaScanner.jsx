@@ -1,70 +1,170 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner } from "html5-qrcode";
-import { Box, Typography, Button } from '@mui/material';
+import React, { useEffect, useRef, useState } from 'react';
+import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import Tesseract from 'tesseract.js';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import './CedulaScanner.css';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
-  const [mensaje, setMensaje] = useState("Iniciando cámara HD...");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [status, setStatus] = useState("Apunta al frente de la cédula");
 
+  // Iniciar la cámara al montar el componente
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "reader", 
-      { 
-        fps: 10, 
-        qrbox: { width: 300, height: 250 }, 
-        aspectRatio: 1.0,
-        disableFlip: false, 
-        // ⚠️ ESTO ES LO NUEVO: FORZAMOS CALIDAD HD
-        videoConstraints: {
-            facingMode: "environment", // Cámara trasera
-            width: { min: 1024, ideal: 1280, max: 1920 }, // Resolución Alta
-            height: { min: 576, ideal: 720, max: 1080 },
-            focusMode: "continuous" // Autoenfoque (si el navegador lo permite)
+    let stream = null;
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
         }
-      },
-      false
-    );
-
-    const onDetect = (decodedText) => {
-      // Ignorar códigos cortos (barras pequeñas)
-      if (decodedText.length < 15) {
-        setMensaje("⚠️ Código pequeño ignorado. Busca el cuadro denso.");
-      } else {
-        scanner.clear();
-        onScanSuccess(decodedText);
+      } catch (err) {
+        console.error("Error accediendo a la cámara:", err);
+        setStatus("Error: No se pudo acceder a la cámara.");
       }
     };
 
-    const onError = (err) => {
-      // Sin acción en error
-    };
+    startCamera();
 
-    scanner.render(onDetect, onError);
-
+    // Limpieza al desmontar
     return () => {
-      scanner.clear().catch(err => console.error("Error limpieza", err));
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, [onScanSuccess]);
+  }, []);
+
+  const captureAndRead = async () => {
+    if (!videoRef.current || !canvasRef.current || isProcessing) return;
+    
+    setIsProcessing(true);
+    setStatus("Capturando y analizando texto...");
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    // Ajustar canvas al tamaño del video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Obtener imagen en base64
+    const imageData = canvas.toDataURL('image/jpeg');
+
+    try {
+      // Tesseract.js para extraer texto (Idioma Español)
+      const { data: { text } } = await Tesseract.recognize(
+        imageData,
+        'spa',
+        { logger: m => console.log(m) } // Puedes ver el progreso en consola
+      );
+
+      console.log("Texto extraído:", text);
+      const datosProcesados = parseTextoCedula(text);
+      
+      if (datosProcesados.cedula) {
+          onScanSuccess(datosProcesados);
+      } else {
+          setStatus("No se detectó una cédula válida. Intenta de nuevo.");
+          setIsProcessing(false);
+      }
+
+    } catch (error) {
+      console.error("Error en OCR:", error);
+      setStatus("Error al analizar la imagen.");
+      setIsProcessing(false);
+    }
+  };
+
+  // Función heurística para sacar los datos del texto bruto
+  const parseTextoCedula = (text) => {
+    const lineas = text.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0);
+    
+    let resultado = {
+        cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
+    };
+
+    // 1. Extraer Cédula (Buscamos patrón nica: 000-000000-0000X)
+    // Se contemplan posibles errores de lectura donde falte un guión o haya espacios
+    const regexCedula = /\b\d{3}[-\s]?\d{6}[-\s]?\d{4}[A-Z]\b/;
+    const matchCedula = text.toUpperCase().match(regexCedula);
+    
+    if (matchCedula) {
+        // Limpiamos y formateamos correctamente a 000-000000-0000X
+        let limpia = matchCedula[0].replace(/\s/g, '');
+        if (limpia.length === 14) {
+            limpia = `${limpia.substring(0,3)}-${limpia.substring(3,9)}-${limpia.substring(9)}`;
+        }
+        resultado.cedula = limpia;
+    }
+
+    // 2. Extraer Nombres y Apellidos (Heurística básica basada en estructura típica)
+    for (let i = 0; i < lineas.length; i++) {
+        // Si la línea dice "APELLIDOS", asumimos que la siguiente línea tiene los apellidos
+        if (lineas[i].includes('APELLIDOS') && lineas[i+1]) {
+            const apellidos = lineas[i+1].split(' ').filter(w => w.length > 1);
+            resultado.primerApellido = apellidos[0] || '';
+            resultado.segundoApellido = apellidos.slice(1).join(' ') || '';
+        }
+        // Si la línea dice "NOMBRES", la siguiente tiene los nombres
+        if (lineas[i].includes('NOMBRES') && lineas[i+1]) {
+            const nombres = lineas[i+1].split(' ').filter(w => w.length > 1);
+            resultado.primerNombre = nombres[0] || '';
+            resultado.segundoNombre = nombres.slice(1).join(' ') || '';
+        }
+    }
+
+    return resultado;
+  };
 
   return (
-    <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#000', color: 'white', borderRadius: 2 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Escaneando Cédula (HD)
-      </Typography>
+    <Box sx={{ position: 'relative', width: '100%', height: '400px', bgcolor: '#000', borderRadius: 2, overflow: 'hidden' }}>
       
-      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#fbbf24', fontWeight: 'bold' }}>
-        {mensaje}
-      </Typography>
+      {/* Video stream */}
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
       
-      {/* Mensaje de ayuda técnica */}
-      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: '#aaa', fontSize: '0.7rem' }}>
-        Tip: Mueve el celular adelante y atrás lentamente para enfocar.
-      </Typography>
+      {/* Canvas oculto para capturar la imagen */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
-      
-      <Button onClick={onClose} variant="outlined" color="error" sx={{ mt: 2 }}>
-        Cancelar
-      </Button>
+      {/* Overlay UI */}
+      <Box className="scanner-overlay">
+        <Box className="scanner-box-ocr">
+            {/* Guía visual */}
+        </Box>
+        
+        <Typography variant="body2" sx={{ color: 'white', mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 1, borderRadius: 1 }}>
+            {status}
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+            <Button 
+                variant="contained" 
+                color="error" 
+                onClick={onClose}
+                disabled={isProcessing}
+            >
+                Cancelar
+            </Button>
+            <Button 
+                variant="contained" 
+                color="success" 
+                onClick={captureAndRead}
+                disabled={isProcessing}
+                startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <CameraAltIcon />}
+            >
+                {isProcessing ? 'Procesando...' : 'Escanear'}
+            </Button>
+        </Box>
+      </Box>
     </Box>
   );
 }
