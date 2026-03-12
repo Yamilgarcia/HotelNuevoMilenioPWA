@@ -16,7 +16,7 @@
 .scanner-box-ocr {
     width: 90%;
     max-width: 350px;
-    height: 220px; /* Más alto para encuadrar la cédula completa */
+    height: 220px; /* Más alto para encuadrasr la cédula completa */
     border: 2px dashed rgba(255, 255, 255, 0.7);
     border-radius: 12px;
     position: relative;
