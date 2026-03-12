@@ -80,79 +80,69 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
     }
   };
 
-  // Función heurística BLINDADA contra etiquetas y texto basura
+ // Función heurística por "Acorralamiento de Texto" (Especial para Nicaragua)
   const parseTextoCedula = (text) => {
-    // 1. Limpiamos las líneas
-    const lineas = text.split('\n')
-        .map(l => l.trim().toUpperCase())
-        .filter(l => l.length > 2);
-    
-    console.log("Líneas detectadas por OCR:", lineas);
-
     let resultado = {
         cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
     };
 
-    // 2. Extraer Cédula (Se mantiene igual, funciona bien)
+    // 1. Convertimos todo a un solo párrafo gigante y en mayúsculas (ignoramos los saltos de línea)
+    const textoPlano = text.replace(/\n/g, ' ').toUpperCase();
+    console.log("Texto plano leído:", textoPlano);
+
+    // 2. Extraer Cédula (Esta parte es casi infalible)
     const regexCedula = /\b\d{3}[-\s]?\d{6}[-\s]?\d{4}[A-Z]\b/;
-    const matchCedula = text.toUpperCase().match(regexCedula);
+    const matchCedula = textoPlano.match(regexCedula);
+    let inicioBloqueNombres = 0;
+
     if (matchCedula) {
         let limpia = matchCedula[0].replace(/\s/g, '');
         if (limpia.length === 14) {
             limpia = `${limpia.substring(0,3)}-${limpia.substring(3,9)}-${limpia.substring(9)}`;
         }
         resultado.cedula = limpia;
+        // Marcamos dónde termina la cédula para empezar a buscar nombres desde ahí
+        inicioBloqueNombres = textoPlano.indexOf(matchCedula[0]) + matchCedula[0].length;
     }
 
-    // LISTA NEGRA: Estas palabras jamás deben guardarse como nombres o apellidos
-    const listaNegra = /NOMBRES?|APELLIDOS?|FECHA|NACIMIENTO|LUGAR|SEXO|EMISION|EXPIRACION|DIRECTOR|CEDULA|IDENTIDAD/g;
+    // 3. ACORRALAR LA ZONA DE NOMBRES
+    // Cortamos la basura de arriba (todo lo que está antes de la cédula)
+    let zonaNombres = textoPlano.substring(inicioBloqueNombres);
 
-    for (let i = 0; i < lineas.length; i++) {
-        let linea = lineas[i];
+    // Cortamos la basura de abajo (todo lo que está después de "FECHA" o un formato de fecha 00-00-0000)
+    const matchFin = zonaNombres.match(/FECHA|LUGAR|NACIMIENTO|\b\d{2}[-/]\d{2}[-/]\d{4}\b/);
+    if (matchFin) {
+        // Nos quedamos SOLO con lo que está entre la cédula y la fecha
+        zonaNombres = zonaNombres.substring(0, matchFin.index);
+    }
 
-        // --- BUSCAR NOMBRES ---
-        if (linea.includes('NOMBRE') || linea.includes('N0MBRE') || linea.includes('NOMBR')) {
-            // Borramos la palabra "NOMBRES" por si el OCR leyó etiqueta y nombre en la misma línea
-            let textoExtraido = linea.replace(/NOMBRES?|N0MBRES?|NOMBR/g, '').trim();
-            
-            // Si la línea quedó casi vacía, el nombre real está en la línea de abajo
-            if (textoExtraido.length < 3 && lineas[i + 1]) {
-                textoExtraido = lineas[i + 1];
-            }
+    // En este punto, 'zonaNombres' debería ser algo como: " NOMBRES JOSE YAMIL APELLIDOS GARCIA ROMERO "
 
-            // MAGIA AQUÍ: Borramos cualquier palabra de la lista negra por si agarró "APELLIDOS" por error
-            textoExtraido = textoExtraido.replace(listaNegra, '').trim();
+    // 4. PARTIR EL BLOQUE EN DOS (Usando la palabra "APELLIDOS" como cuchillo)
+    const regexSeparador = /APELLIDOS?|PELLIDOS?|APEL|APELL1DOS?/;
+    const partes = zonaNombres.split(regexSeparador);
 
-            if (textoExtraido.length >= 3) {
-                // Limpiamos caracteres raros y guardamos
-                textoExtraido = textoExtraido.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-                const partes = textoExtraido.split(' ');
-                resultado.primerNombre = partes[0] || '';
-                resultado.segundoNombre = partes.slice(1).join(' ') || '';
-            }
-        }
+    let nombresRaw = partes[0] || "";
+    let apellidosRaw = partes.length > 1 ? partes[1] : "";
 
-        // --- BUSCAR APELLIDOS ---
-        if (linea.includes('APELLIDO') || linea.includes('PELLIDO') || linea.includes('APEL')) {
-            // Borramos la palabra "APELLIDOS"
-            let textoExtraido = linea.replace(/APELLIDOS?|PELLIDOS?|APEL/g, '').trim();
-            
-            // Si la línea quedó casi vacía, el apellido está en la línea de abajo
-            if (textoExtraido.length < 3 && lineas[i + 1]) {
-                textoExtraido = lineas[i + 1];
-            }
+    // 5. LIMPIAR Y ASIGNAR NOMBRES
+    // Le arrancamos la etiqueta "NOMBRES" y cualquier símbolo raro
+    nombresRaw = nombresRaw.replace(/NOMBRES?|N0MBRES?|NOMBR/g, '').replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+    const arrayNombres = nombresRaw.split(' ');
+    
+    if (arrayNombres.length > 0 && arrayNombres[0] !== "") {
+        resultado.primerNombre = arrayNombres[0];
+        // Si hay más de un nombre, los une todos en el segundo campo
+        resultado.segundoNombre = arrayNombres.slice(1).join(' '); 
+    }
 
-            // Evitamos que guarde "FECHA DE NACIMIENTO" como apellido
-            textoExtraido = textoExtraido.replace(listaNegra, '').trim();
-
-            if (textoExtraido.length >= 3) {
-                // Limpiamos y guardamos
-                textoExtraido = textoExtraido.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
-                const partes = textoExtraido.split(' ');
-                resultado.primerApellido = partes[0] || '';
-                resultado.segundoApellido = partes.slice(1).join(' ') || '';
-            }
-        }
+    // 6. LIMPIAR Y ASIGNAR APELLIDOS
+    apellidosRaw = apellidosRaw.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
+    const arrayApellidos = apellidosRaw.split(' ');
+    
+    if (arrayApellidos.length > 0 && arrayApellidos[0] !== "") {
+        resultado.primerApellido = arrayApellidos[0];
+        resultado.segundoApellido = arrayApellidos.slice(1).join(' ');
     }
 
     return resultado;
