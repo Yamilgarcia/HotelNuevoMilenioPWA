@@ -1,96 +1,124 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
-import Tesseract from 'tesseract.js';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ReplayIcon from '@mui/icons-material/Replay';
 import './CedulaScanner.css';
 
 export default function CedulaScanner({ onScanSuccess, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const [stream, setStream] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState("Apunta al frente de la cédula");
+  const [status, setStatus] = useState("Apunta al frente de la cédula y evita reflejos");
 
-  // Iniciar la cámara al montar el componente
+  // Iniciar la cámara
   useEffect(() => {
-    let stream = null;
     const startCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
+        setStream(mediaStream);
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = mediaStream;
         }
       } catch (err) {
         console.error("Error accediendo a la cámara:", err);
         setStatus("Error: No se pudo acceder a la cámara.");
       }
     };
-
     startCamera();
 
-    // Limpieza al desmontar
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+      if (stream) stream.getTracks().forEach(track => track.stop());
     };
   }, []);
 
-  const captureAndRead = async () => {
-    if (!videoRef.current || !canvasRef.current || isProcessing) return;
+  // 1. Tomar la foto y mostrar la vista previa (No cobra nada)
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
     
-    setIsProcessing(true);
-    setStatus("Capturando y analizando texto...");
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
-    // Ajustar canvas al tamaño del video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Obtener imagen en base64
-    const imageData = canvas.toDataURL('image/jpeg');
+    // Guardamos la imagen en base64 para mostrarla
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8); // 0.8 comprime un poco para mayor velocidad
+    setCapturedImage(base64Image);
+    setStatus("¿La foto es nítida y se leen bien los datos?");
+  };
+
+  // 2. Descartar foto y volver a la cámara
+  const retakePhoto = () => {
+    setCapturedImage(null);
+    setStatus("Apunta al frente de la cédula y evita reflejos");
+  };
+
+  // 3. Enviar a Google Vision API (ESTO CONSUME 1 ESCANEO)
+  const analyzeWithGoogleVision = async () => {
+    setIsProcessing(true);
+    setStatus("Consultando con la IA en la nube...");
 
     try {
-      // Tesseract.js para extraer texto (Idioma Español)
-      const { data: { text } } = await Tesseract.recognize(
-        imageData,
-        'spa',
-        { logger: m => console.log(m) } // Puedes ver el progreso en consola
-      );
+      // Le quitamos el encabezado 'data:image/jpeg;base64,' porque Google solo quiere el código puro
+      const base64Data = capturedImage.split(',')[1];
+      const API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY; // Llama a tu variable de entorno
+      const endpoint = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
 
-      console.log("Texto extraído:", text);
-      const datosProcesados = parseTextoCedula(text);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: { content: base64Data },
+              features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] // Modo especial para documentos densos
+            }
+          ]
+        })
+      });
+
+      const result = await response.json();
+      
+      // Google devuelve un texto gigante perfecto con todo lo que leyó
+      const fullText = result.responses[0]?.fullTextAnnotation?.text || "";
+      console.log("Texto perfecto de Google:", fullText);
+
+      if (!fullText) {
+        setStatus("Google no encontró texto. Intenta de nuevo.");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Procesamos el texto con la lógica que ya armamos
+      const datosProcesados = parseTextoGoogle(fullText);
       
       if (datosProcesados.cedula) {
           onScanSuccess(datosProcesados);
       } else {
-          setStatus("No se detectó una cédula válida. Intenta de nuevo.");
+          setStatus("Se leyó el texto pero no parece una cédula. Intenta de nuevo.");
           setIsProcessing(false);
       }
 
     } catch (error) {
-      console.error("Error en OCR:", error);
-      setStatus("Error al analizar la imagen.");
+      console.error("Error en Google Vision API:", error);
+      setStatus("Error de conexión. Revisa tu internet.");
       setIsProcessing(false);
     }
   };
 
- // Función heurística por "Acorralamiento de Texto" (Especial para Nicaragua)
-  const parseTextoCedula = (text) => {
-    let resultado = {
-        cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
-    };
-
-    // 1. Convertimos todo a un solo párrafo gigante y en mayúsculas (ignoramos los saltos de línea)
+  // Lógica de acorralamiento adaptada a la limpieza de Google Vision
+  const parseTextoGoogle = (text) => {
+    let resultado = { cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '' };
     const textoPlano = text.replace(/\n/g, ' ').toUpperCase();
-    console.log("Texto plano leído:", textoPlano);
 
-    // 2. Extraer Cédula (Esta parte es casi infalible)
+    // Extraer Cédula
     const regexCedula = /\b\d{3}[-\s]?\d{6}[-\s]?\d{4}[A-Z]\b/;
     const matchCedula = textoPlano.match(regexCedula);
     let inicioBloqueNombres = 0;
@@ -101,45 +129,29 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
             limpia = `${limpia.substring(0,3)}-${limpia.substring(3,9)}-${limpia.substring(9)}`;
         }
         resultado.cedula = limpia;
-        // Marcamos dónde termina la cédula para empezar a buscar nombres desde ahí
         inicioBloqueNombres = textoPlano.indexOf(matchCedula[0]) + matchCedula[0].length;
     }
 
-    // 3. ACORRALAR LA ZONA DE NOMBRES
-    // Cortamos la basura de arriba (todo lo que está antes de la cédula)
+    // Acorralar y extraer Nombres y Apellidos
     let zonaNombres = textoPlano.substring(inicioBloqueNombres);
-
-    // Cortamos la basura de abajo (todo lo que está después de "FECHA" o un formato de fecha 00-00-0000)
     const matchFin = zonaNombres.match(/FECHA|LUGAR|NACIMIENTO|\b\d{2}[-/]\d{2}[-/]\d{4}\b/);
-    if (matchFin) {
-        // Nos quedamos SOLO con lo que está entre la cédula y la fecha
-        zonaNombres = zonaNombres.substring(0, matchFin.index);
-    }
+    if (matchFin) zonaNombres = zonaNombres.substring(0, matchFin.index);
 
-    // En este punto, 'zonaNombres' debería ser algo como: " NOMBRES JOSE YAMIL APELLIDOS GARCIA ROMERO "
-
-    // 4. PARTIR EL BLOQUE EN DOS (Usando la palabra "APELLIDOS" como cuchillo)
     const regexSeparador = /APELLIDOS?|PELLIDOS?|APEL|APELL1DOS?/;
     const partes = zonaNombres.split(regexSeparador);
 
     let nombresRaw = partes[0] || "";
     let apellidosRaw = partes.length > 1 ? partes[1] : "";
 
-    // 5. LIMPIAR Y ASIGNAR NOMBRES
-    // Le arrancamos la etiqueta "NOMBRES" y cualquier símbolo raro
     nombresRaw = nombresRaw.replace(/NOMBRES?|N0MBRES?|NOMBR/g, '').replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
     const arrayNombres = nombresRaw.split(' ');
-    
     if (arrayNombres.length > 0 && arrayNombres[0] !== "") {
         resultado.primerNombre = arrayNombres[0];
-        // Si hay más de un nombre, los une todos en el segundo campo
         resultado.segundoNombre = arrayNombres.slice(1).join(' '); 
     }
 
-    // 6. LIMPIAR Y ASIGNAR APELLIDOS
     apellidosRaw = apellidosRaw.replace(/[^A-ZÑ\s]/g, '').trim().replace(/\s+/g, ' ');
     const arrayApellidos = apellidosRaw.split(' ');
-    
     if (arrayApellidos.length > 0 && arrayApellidos[0] !== "") {
         resultado.primerApellido = arrayApellidos[0];
         resultado.segundoApellido = arrayApellidos.slice(1).join(' ');
@@ -151,45 +163,40 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   return (
     <Box sx={{ position: 'relative', width: '100%', height: '400px', bgcolor: '#000', borderRadius: 2, overflow: 'hidden' }}>
       
-      {/* Video stream */}
-      <video 
-        ref={videoRef} 
-        autoPlay 
-        playsInline 
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
+      {/* Vista Previa o Video en Vivo */}
+      {capturedImage ? (
+          <img src={capturedImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+          <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      )}
       
-      {/* Canvas oculto para capturar la imagen */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Overlay UI */}
       <Box className="scanner-overlay">
-        <Box className="scanner-box-ocr">
-            {/* Guía visual */}
-        </Box>
+        {!capturedImage && <Box className="scanner-box-ocr"></Box>}
         
-        <Typography variant="body2" sx={{ color: 'white', mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 1, borderRadius: 1 }}>
+        <Typography variant="body2" sx={{ color: 'white', mt: 2, bgcolor: 'rgba(0,0,0,0.6)', px: 2, py: 1, borderRadius: 1, textAlign: 'center' }}>
             {status}
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
-            <Button 
-                variant="contained" 
-                color="error" 
-                onClick={onClose}
-                disabled={isProcessing}
-            >
-                Cancelar
-            </Button>
-            <Button 
-                variant="contained" 
-                color="success" 
-                onClick={captureAndRead}
-                disabled={isProcessing}
-                startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <CameraAltIcon />}
-            >
-                {isProcessing ? 'Procesando...' : 'Escanear'}
-            </Button>
+            {!capturedImage ? (
+                <>
+                    <Button variant="contained" color="error" onClick={onClose}>Cancelar</Button>
+                    <Button variant="contained" color="info" onClick={capturePhoto} startIcon={<CameraAltIcon />}>
+                        Capturar
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <Button variant="contained" color="warning" onClick={retakePhoto} disabled={isProcessing} startIcon={<ReplayIcon />}>
+                        Reintentar
+                    </Button>
+                    <Button variant="contained" color="success" onClick={analyzeWithGoogleVision} disabled={isProcessing} startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <CheckCircleIcon />}>
+                        {isProcessing ? 'Procesando...' : 'Analizar (API)'}
+                    </Button>
+                </>
+            )}
         </Box>
       </Box>
     </Box>
