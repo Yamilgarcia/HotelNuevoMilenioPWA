@@ -53,10 +53,10 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
     e.preventDefault();
     if (!validate()) return;
 
+    // Solo enviamos los datos que coinciden con las columnas de Supabase
     onSave({ 
       ...form, 
-      precio: Number(form.precio),
-      actualizado: Date.now() 
+      precio: Number(form.precio)
     });
 
     showToast("✅ Habitación registrada", "success");

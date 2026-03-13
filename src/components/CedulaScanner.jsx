@@ -61,14 +61,22 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   };
 
   // 3. Enviar a Google Vision API (ESTO CONSUME 1 ESCANEO)
+  // 3. Enviar a Google Vision API (VERSIÓN CON DEBUG)
   const analyzeWithGoogleVision = async () => {
     setIsProcessing(true);
     setStatus("Consultando con la IA en la nube...");
 
     try {
-      // Le quitamos el encabezado 'data:image/jpeg;base64,' porque Google solo quiere el código puro
       const base64Data = capturedImage.split(',')[1];
-      const API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY; // Llama a tu variable de entorno
+      const API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY; 
+
+      // Trampa 1: Verificar si Vite realmente cargó la clave
+      if (!API_KEY) {
+          setStatus("Error: Vite no está leyendo tu clave API del archivo .env");
+          setIsProcessing(false);
+          return;
+      }
+
       const endpoint = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
 
       const response = await fetch(endpoint, {
@@ -78,7 +86,7 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
           requests: [
             {
               image: { content: base64Data },
-              features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] // Modo especial para documentos densos
+              features: [{ type: 'DOCUMENT_TEXT_DETECTION' }]
             }
           ]
         })
@@ -86,9 +94,15 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
 
       const result = await response.json();
       
-      // Google devuelve un texto gigante perfecto con todo lo que leyó
-      const fullText = result.responses[0]?.fullTextAnnotation?.text || "";
-      console.log("Texto perfecto de Google:", fullText);
+      // Trampa 2: Capturar el error EXACTO que nos devuelve Google Cloud
+      if (result.error) {
+          setStatus(`Google dice: ${result.error.message}`);
+          setIsProcessing(false);
+          return;
+      }
+
+      // Si todo sale bien, procesamos el texto
+      const fullText = result.responses?.[0]?.fullTextAnnotation?.text || "";
 
       if (!fullText) {
         setStatus("Google no encontró texto. Intenta de nuevo.");
@@ -96,19 +110,18 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         return;
       }
 
-      // Procesamos el texto con la lógica que ya armamos
       const datosProcesados = parseTextoGoogle(fullText);
       
       if (datosProcesados.cedula) {
           onScanSuccess(datosProcesados);
       } else {
-          setStatus("Se leyó el texto pero no parece una cédula. Intenta de nuevo.");
+          setStatus("Se leyó el texto pero no se reconoció la cédula.");
           setIsProcessing(false);
       }
 
     } catch (error) {
-      console.error("Error en Google Vision API:", error);
-      setStatus("Error de conexión. Revisa tu internet.");
+      // Trampa 3: Si el código falla por otra cosa, muestra el error de JavaScript
+      setStatus(`Error técnico: ${error.message}`);
       setIsProcessing(false);
     }
   };

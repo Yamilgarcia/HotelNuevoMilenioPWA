@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+// Solo actualiza estas rutas a tus nuevos archivos
 import {
   createHabitacion,
   updateHabitacion,
-} from "../data/habitaciones.firebase";
+} from "../data/habitaciones.supabase"; 
 import { subscribeToHabitaciones } from "../data/habitaciones.subscriptions";
 
 export const useHabitaciones = () => {
