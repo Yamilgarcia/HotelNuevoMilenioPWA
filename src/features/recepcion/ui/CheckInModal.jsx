@@ -7,7 +7,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-import CedulaScanner from './CedulaScanner'; 
+import CedulaScanner from '../../../components/CedulaScanner'; // Ajusta la ruta según tu proyecto
 
 export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   const [form, setForm] = useState({
