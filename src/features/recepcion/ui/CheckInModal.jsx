@@ -7,22 +7,16 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-import CedulaScanner from '../../../components/CedulaScanner'; // Ajusta la ruta según tu proyecto
+import CedulaScanner from './CedulaScanner'; 
 
 export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   const [form, setForm] = useState({
-    cedula: '',
-    primerNombre: '',
-    segundoNombre: '',
-    primerApellido: '',
-    segundoApellido: '',
-    personas: 1,
+    cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', personas: 1,
   });
 
   const [errorCedula, setErrorCedula] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
-  // Lógica de Precios
   const precioCalculado = useMemo(() => {
     if (!habitacion) return 0;
     let precioBase = Number(habitacion.precio) || 0;
@@ -31,7 +25,7 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
     return precioBase;
   }, [habitacion, form.personas]);
 
-  // --- NUEVA LÓGICA OCR ---
+  // Recibe los datos ya procesados por el OCR
   const handleScanData = (datosExtraidos) => {
     setForm(prev => ({
         ...prev,
@@ -42,7 +36,6 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
         segundoApellido: datosExtraidos.segundoApellido || prev.segundoApellido
     }));
 
-    // Validar cédula extraída
     if (datosExtraidos.cedula && !validarCedulaNica(datosExtraidos.cedula)) {
         setErrorCedula(true);
     } else {
@@ -50,7 +43,7 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
     }
 
     setShowScanner(false);
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Vibración de éxito doble
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   };
 
   const validarCedulaNica = (cedula) => /^\d{3}-\d{6}-\d{4}[A-Z]$/.test(cedula);
