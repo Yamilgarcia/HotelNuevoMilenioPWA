@@ -1,0 +1,56 @@
+﻿PROJECT TREE: HotelNuevoMilenioPWA
+ROOT: C:\Users\mr540\Desktop\HotelNuevoMilenioPWA
+
+├─ public\
+│  ├─ public\icons\
+│  │  ├─ public\icons\icon-192.png
+│  │  └─ public\icons\icon-512.png
+│  ├─ public\_redirects
+│  ├─ public\manifest.webmanifest
+│  ├─ public\service-worker.js
+│  └─ public\vite.svg
+├─ src\
+│  ├─ src\assets\
+│  │  └─ src\assets\react.svg
+│  ├─ src\components\
+│  │  ├─ src\components\CedulaScanner.css
+│  │  ├─ src\components\CedulaScanner.jsx
+│  │  ├─ src\components\HamburgerButton.jsx
+│  │  ├─ src\components\InstallPWAButton.jsx
+│  │  ├─ src\components\SideMenu.jsx
+│  │  └─ src\components\ToastContext.jsx
+│  ├─ src\features\
+│  │  ├─ src\features\habitaciones\
+│  │  │  ├─ src\features\habitaciones\data\
+│  │  │  │  ├─ src\features\habitaciones\data\habitaciones.subscriptions.js
+│  │  │  │  └─ src\features\habitaciones\data\habitaciones.supabase.js
+│  │  │  ├─ src\features\habitaciones\logic\
+│  │  │  │  └─ src\features\habitaciones\logic\useHabitaciones.js
+│  │  │  └─ src\features\habitaciones\ui\
+│  │  │     ├─ src\features\habitaciones\ui\HabitacionCard.css
+│  │  │     ├─ src\features\habitaciones\ui\HabitacionCard.jsx
+│  │  │     ├─ src\features\habitaciones\ui\HabitacionForm.css
+│  │  │     └─ src\features\habitaciones\ui\HabitacionForm.jsx
+│  │  └─ src\features\recepcion\
+│  │     ├─ src\features\recepcion\logic\
+│  │     │  └─ src\features\recepcion\logic\useRecepcion.js
+│  │     └─ src\features\recepcion\ui\
+│  │        ├─ src\features\recepcion\ui\CheckInModal.jsx
+│  │        └─ src\features\recepcion\ui\RoomOptionsModal.jsx
+│  ├─ src\layout\
+│  │  └─ src\layout\AppLayout.jsx
+│  ├─ src\pages\
+│  │  ├─ src\pages\DashboardPage.jsx
+│  │  └─ src\pages\HabitacionPage.jsx
+│  ├─ src\App.css
+│  ├─ src\App.jsx
+│  ├─ src\index.css
+│  ├─ src\main.jsx
+│  └─ src\supabase.config.js
+├─ .gitignore
+├─ eslint.config.js
+├─ index.html
+├─ package.json
+├─ package-lock.json
+├─ README.md
+└─ vite.config.js
