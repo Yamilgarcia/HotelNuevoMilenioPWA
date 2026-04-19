@@ -5,15 +5,13 @@ const AuthContext = createContext(null);
 
 function normalizeRole(value) {
   if (typeof value !== "string") return null;
-
   const clean = value.trim().toLowerCase();
-
   if (clean === "admin" || clean === "administrador") return "administrador";
   if (clean === "receptionist" || clean === "recepcionista") return "recepcionista";
-
   return clean;
 }
 
+// LÓGICA MODIFICADA PARA SOPORTAR OFFLINE
 async function getProfile(userId) {
   try {
     const { data, error } = await supabase
@@ -22,15 +20,27 @@ async function getProfile(userId) {
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) {
-      console.error("Error cargando profile:", error);
-      return null;
-    }
+    if (error) throw error;
 
-    return data ?? null;
-  } catch (err) {
-    console.error("Error inesperado cargando profile:", err);
+    if (data) {
+      // ONLINE: Guardamos el perfil localmente por si se va el internet mañana
+      localStorage.setItem(`hotel_profile_${userId}`, JSON.stringify(data));
+      return data;
+    }
+    
     return null;
+  } catch (err) {
+    // OFFLINE O ERROR DE RED: Intentamos rescatar la sesión guardada
+    console.warn("Sin conexión con BD, intentando cargar perfil local para mantener sesión...", err);
+    
+    const cachedProfile = localStorage.getItem(`hotel_profile_${userId}`);
+    if (cachedProfile) {
+      console.log("¡Perfil recuperado de caché local!");
+      return JSON.parse(cachedProfile);
+    }
+    
+    // Si no hay caché, no podemos dejarlo entrar porque no sabemos su rol
+    return null; 
   }
 }
 
@@ -48,15 +58,10 @@ export function AuthProvider({ children }) {
       try {
         setLoading(true);
 
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+        // Supabase maneja esta petición usando su propia caché offline, así que no fallará sin internet
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error("getSession error:", error);
-        }
-
+        if (error) console.error("getSession error:", error);
         if (!mounted) return;
 
         setSession(session ?? null);
@@ -79,7 +84,6 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.error("Error inicializando auth:", err);
-
         if (!mounted) return;
         setSession(null);
         setUser(null);
@@ -92,9 +96,7 @@ export function AuthProvider({ children }) {
 
     bootstrap();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       (async () => {
         try {
           if (!mounted) return;
@@ -120,7 +122,6 @@ export function AuthProvider({ children }) {
           }
         } catch (err) {
           console.error("onAuthStateChange error:", err);
-
           if (!mounted) return;
           setProfile(null);
           setRole(null);
@@ -141,7 +142,6 @@ export function AuthProvider({ children }) {
       email,
       password,
     });
-
     if (error) throw error;
     return data;
   };
@@ -149,6 +149,9 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+
+    // Limpiamos la caché del perfil al cerrar sesión manualmente
+    if (user?.id) localStorage.removeItem(`hotel_profile_${user.id}`);
 
     setSession(null);
     setUser(null);
@@ -177,8 +180,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth debe usarse dentro de AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
   return ctx;
 }
