@@ -1,70 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { supabase } from "../../../supabase.config";
 import UserFormModal from "../components/UserFormModal";
 import "../styles/users-admin.css";
 
-const USER_TYPE_OPTIONS = [
-  "Administrador",
+const ROLE_OPTIONS = ["administrador", "recepcionista"];
+const CARGO_OPTIONS = [
   "Recepción",
   "Limpieza",
   "Mantenimiento",
-  "Empleado",
-];
-
-const MOCK_USERS = [
-  {
-    id: 1,
-    first_name: "Luisa",
-    last_name_paternal: "",
-    last_name_maternal: "",
-    birth_date: "",
-    email: "luiii@gmail.com",
-    phone: "",
-    address: "",
-    username: "luis12",
-    user_type: "Limpieza",
-    status: "Activo",
-  },
-  {
-    id: 2,
-    first_name: "Dayana",
-    last_name_paternal: "",
-    last_name_maternal: "",
-    birth_date: "",
-    email: "daya@gmail.com",
-    phone: "",
-    address: "",
-    username: "daya123",
-    user_type: "Empleado",
-    status: "Activo",
-  },
-  {
-    id: 3,
-    first_name: "Alisson",
-    last_name_paternal: "Men",
-    last_name_maternal: "",
-    birth_date: "",
-    email: "se@gmail.com",
-    phone: "",
-    address: "",
-    username: "alimen",
-    user_type: "Administrador",
-    status: "Activo",
-  },
+  "Gerencia",
+  "Administración",
 ];
 
 const EMPTY_USER = {
-  id: null,
-  first_name: "",
-  last_name_paternal: "",
-  last_name_maternal: "",
-  birth_date: "",
+  id: "",
+  nombre: "",
   email: "",
+  username: "",
   phone: "",
   address: "",
-  username: "",
-  user_type: "",
-  status: "Activo",
+  birth_date: "",
+  cargo: "",
+  role: "recepcionista",
+  status: "activo",
+  avatar_url: "",
 };
+
+function normalizeProfile(row) {
+  return {
+    id: row.id ?? "",
+    nombre: row.nombre ?? "",
+    email: row.email ?? "",
+    username: row.username ?? "",
+    phone: row.phone ?? "",
+    address: row.address ?? "",
+    birth_date: row.birth_date ?? "",
+    cargo: row.cargo ?? "",
+    role: row.role ?? "recepcionista",
+    status: row.status === "inactivo" ? "inactivo" : "activo",
+    avatar_url: row.avatar_url ?? "",
+  };
+}
 
 function formatDate(dateValue) {
   if (!dateValue) return "Pendiente";
@@ -79,19 +55,23 @@ function formatDate(dateValue) {
   }).format(date);
 }
 
-function fullName(user) {
-  return [
-    user.first_name,
-    user.last_name_paternal,
-    user.last_name_maternal,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+function safeText(value) {
+  return value?.trim() ? value : "Pendiente";
+}
+
+function getStatusLabel(status) {
+  return status === "inactivo" ? "Inactivo" : "Activo";
+}
+
+function getRoleLabel(role) {
+  if (role === "administrador") return "Administrador";
+  if (role === "recepcionista") return "Recepcionista";
+  return "Pendiente";
 }
 
 function getInitials(user) {
-  const name = fullName(user) || user.username || "U";
+  const name = user.nombre?.trim() || user.username || user.email || "U";
+
   return name
     .split(" ")
     .filter(Boolean)
@@ -100,43 +80,70 @@ function getInitials(user) {
     .join("");
 }
 
-function safeText(value) {
-  return value?.trim() ? value : "Pendiente";
-}
-
 export default function UsersAdminPage() {
-  const [users, setUsers] = useState(MOCK_USERS);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Todos");
+  const [statusFilter, setStatusFilter] = useState("todos");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("create");
+  const [modalMode, setModalMode] = useState("view");
   const [selectedUser, setSelectedUser] = useState(EMPTY_USER);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const { data, error: fetchError } = await supabase
+      .from("profiles")
+      .select(
+        "id, email, nombre, role, username, phone, address, birth_date, status, cargo, avatar_url, created_at, updated_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (fetchError) {
+      setError(fetchError.message || "No se pudieron cargar los usuarios.");
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    setUsers((data || []).map(normalizeProfile));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return users.filter((user) => {
-      const matchesStatus =
-        statusFilter === "Todos" ? true : user.status === statusFilter;
+      const statusOk =
+        statusFilter === "todos" ? true : user.status === statusFilter;
 
       const haystack = [
-        fullName(user),
+        user.nombre,
         user.username,
         user.email,
         user.phone,
         user.address,
-        user.user_type,
+        user.cargo,
+        user.role,
         user.status,
       ]
         .join(" ")
         .toLowerCase();
 
-      const matchesSearch = !term || haystack.includes(term);
+      const searchOk = !term || haystack.includes(term);
 
-      return matchesStatus && matchesSearch;
+      return statusOk && searchOk;
     });
   }, [users, search, statusFilter]);
 
@@ -152,12 +159,6 @@ export default function UsersAdminPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  function openCreateModal() {
-    setSelectedUser(EMPTY_USER);
-    setModalMode("create");
-    setModalOpen(true);
-  }
-
   function openEditModal(user) {
     setSelectedUser(user);
     setModalMode("edit");
@@ -172,44 +173,80 @@ export default function UsersAdminPage() {
 
   function closeModal() {
     setModalOpen(false);
+    setSelectedUser(EMPTY_USER);
   }
 
-  function handleSave(payload) {
-    if (modalMode === "edit") {
-      setUsers((current) =>
-        current.map((item) => (item.id === payload.id ? payload : item))
-      );
-    } else {
-      const nextId =
-        users.length > 0 ? Math.max(...users.map((item) => item.id)) + 1 : 1;
+  async function handleSave(payload) {
+    if (!payload?.id) return;
 
-      setUsers((current) => [{ ...payload, id: nextId }, ...current]);
+    setSaving(true);
+    setError("");
+
+    const updates = {
+      nombre: payload.nombre.trim(),
+      username: payload.username.trim() || null,
+      phone: payload.phone.trim() || null,
+      address: payload.address.trim() || null,
+      birth_date: payload.birth_date || null,
+      cargo: payload.cargo.trim() || null,
+      role: payload.role,
+      status: payload.status,
+      avatar_url: payload.avatar_url.trim() || null,
+    };
+
+    const { data, error: updateError } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", payload.id)
+      .select(
+        "id, email, nombre, role, username, phone, address, birth_date, status, cargo, avatar_url"
+      )
+      .single();
+
+    if (updateError) {
+      setError(updateError.message || "No se pudo actualizar el usuario.");
+      setSaving(false);
+      return;
     }
 
+    const nextUser = normalizeProfile(data);
+
+    setUsers((current) =>
+      current.map((item) => (item.id === nextUser.id ? nextUser : item))
+    );
+
+    setSaving(false);
     setModalOpen(false);
   }
 
-  function handleToggleStatus(user) {
-    setUsers((current) =>
-      current.map((item) =>
-        item.id === user.id
-          ? {
-              ...item,
-              status: item.status === "Activo" ? "Inactivo" : "Activo",
-            }
-          : item
+  async function handleToggleStatus(user) {
+    const nextStatus = user.status === "activo" ? "inactivo" : "activo";
+
+    setSaving(true);
+    setError("");
+
+    const { data, error: updateError } = await supabase
+      .from("profiles")
+      .update({ status: nextStatus })
+      .eq("id", user.id)
+      .select(
+        "id, email, nombre, role, username, phone, address, birth_date, status, cargo, avatar_url"
       )
+      .single();
+
+    if (updateError) {
+      setError(updateError.message || "No se pudo cambiar el estado.");
+      setSaving(false);
+      return;
+    }
+
+    const nextUser = normalizeProfile(data);
+
+    setUsers((current) =>
+      current.map((item) => (item.id === nextUser.id ? nextUser : item))
     );
-  }
 
-  function handleDelete(user) {
-    const confirmDelete = window.confirm(
-      `¿Eliminar a ${fullName(user) || user.username}?`
-    );
-
-    if (!confirmDelete) return;
-
-    setUsers((current) => current.filter((item) => item.id !== user.id));
+    setSaving(false);
   }
 
   return (
@@ -221,7 +258,7 @@ export default function UsersAdminPage() {
             Usuarios
           </h1>
           <p className="users-admin__subtitle">
-            Gestión de cuentas internas del hotel.
+            Administración de perfiles del sistema.
           </p>
         </div>
 
@@ -234,22 +271,26 @@ export default function UsersAdminPage() {
 
       <div className="users-admin__card">
         <div className="users-admin__card-header">
-          <h2>Catálogo de Usuarios</h2>
+          <h2>Perfiles</h2>
 
           <select
             className="users-admin__select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="Todos">Todos</option>
-            <option value="Activo">Activos</option>
-            <option value="Inactivo">Inactivos</option>
+            <option value="todos">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
           </select>
         </div>
 
         <div className="users-admin__toolbar">
-          <button className="users-admin__primary-btn" onClick={openCreateModal}>
-            Agregar nuevo
+          <button
+            className="users-admin__primary-btn"
+            onClick={loadUsers}
+            disabled={loading || saving}
+          >
+            {loading ? "Cargando..." : "Recargar"}
           </button>
         </div>
 
@@ -282,6 +323,21 @@ export default function UsersAdminPage() {
           </div>
         </div>
 
+        {error ? (
+          <div
+            style={{
+              margin: "0 1.25rem 1rem",
+              padding: "0.9rem 1rem",
+              borderRadius: "14px",
+              background: "#fff1f2",
+              color: "#be123c",
+              fontWeight: 600,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
         <div className="users-admin__table-wrap">
           <table className="users-admin__table">
             <thead>
@@ -292,14 +348,20 @@ export default function UsersAdminPage() {
                 <th>Fecha nacimiento</th>
                 <th>Teléfono | Correo</th>
                 <th>Dirección</th>
-                <th>Tipo</th>
+                <th>Cargo | Rol</th>
                 <th>Estatus</th>
                 <th>Acciones</th>
               </tr>
             </thead>
 
             <tbody>
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="9">
+                    <div className="users-admin__empty">Cargando usuarios...</div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan="9">
                     <div className="users-admin__empty">
@@ -315,7 +377,7 @@ export default function UsersAdminPage() {
                     <td>
                       <div className="users-admin__name-cell">
                         <div className="users-admin__user-name">
-                          {fullName(user) || "Sin nombre"}
+                          {safeText(user.nombre)}
                         </div>
                         <div className="users-admin__avatar">
                           {getInitials(user)}
@@ -330,16 +392,21 @@ export default function UsersAdminPage() {
                       <div className="users-admin__muted">{safeText(user.email)}</div>
                     </td>
                     <td>{safeText(user.address)}</td>
-                    <td>{safeText(user.user_type)}</td>
+                    <td>
+                      <div>{safeText(user.cargo)}</div>
+                      <div className="users-admin__muted">
+                        {getRoleLabel(user.role)}
+                      </div>
+                    </td>
                     <td>
                       <span
                         className={`users-admin__status-badge ${
-                          user.status === "Activo"
+                          user.status === "activo"
                             ? "users-admin__status-badge--active"
                             : "users-admin__status-badge--inactive"
                         }`}
                       >
-                        {user.status}
+                        {getStatusLabel(user.status)}
                       </span>
                     </td>
                     <td>
@@ -348,6 +415,7 @@ export default function UsersAdminPage() {
                           className="users-admin__icon-btn users-admin__icon-btn--warning"
                           title="Editar"
                           onClick={() => openEditModal(user)}
+                          disabled={saving}
                         >
                           ✏️
                         </button>
@@ -356,6 +424,7 @@ export default function UsersAdminPage() {
                           className="users-admin__icon-btn users-admin__icon-btn--info"
                           title="Ver"
                           onClick={() => openViewModal(user)}
+                          disabled={saving}
                         >
                           👁
                         </button>
@@ -363,21 +432,12 @@ export default function UsersAdminPage() {
                         <button
                           className="users-admin__icon-btn users-admin__icon-btn--secondary"
                           title={
-                            user.status === "Activo"
-                              ? "Desactivar"
-                              : "Activar"
+                            user.status === "activo" ? "Desactivar" : "Activar"
                           }
                           onClick={() => handleToggleStatus(user)}
+                          disabled={saving}
                         >
                           ⏻
-                        </button>
-
-                        <button
-                          className="users-admin__icon-btn users-admin__icon-btn--danger"
-                          title="Eliminar"
-                          onClick={() => handleDelete(user)}
-                        >
-                          🗑
                         </button>
                       </div>
                     </td>
@@ -389,7 +449,9 @@ export default function UsersAdminPage() {
         </div>
 
         <div className="users-admin__mobile-list">
-          {paginatedUsers.length === 0 ? (
+          {loading ? (
+            <div className="users-admin__empty">Cargando usuarios...</div>
+          ) : paginatedUsers.length === 0 ? (
             <div className="users-admin__empty">No se encontraron usuarios.</div>
           ) : (
             paginatedUsers.map((user, index) => (
@@ -400,18 +462,18 @@ export default function UsersAdminPage() {
                   </div>
 
                   <div className="users-admin__mobile-head-text">
-                    <strong>{fullName(user) || "Sin nombre"}</strong>
+                    <strong>{safeText(user.nombre)}</strong>
                     <span>@{safeText(user.username)}</span>
                   </div>
 
                   <span
                     className={`users-admin__status-badge ${
-                      user.status === "Activo"
+                      user.status === "activo"
                         ? "users-admin__status-badge--active"
                         : "users-admin__status-badge--inactive"
                     }`}
                   >
-                    {user.status}
+                    {getStatusLabel(user.status)}
                   </span>
                 </div>
 
@@ -421,8 +483,12 @@ export default function UsersAdminPage() {
                     <p>{startIndex + index + 1}</p>
                   </div>
                   <div>
-                    <span className="users-admin__label">Tipo</span>
-                    <p>{safeText(user.user_type)}</p>
+                    <span className="users-admin__label">Cargo</span>
+                    <p>{safeText(user.cargo)}</p>
+                  </div>
+                  <div>
+                    <span className="users-admin__label">Rol</span>
+                    <p>{getRoleLabel(user.role)}</p>
                   </div>
                   <div>
                     <span className="users-admin__label">Correo</span>
@@ -446,26 +512,23 @@ export default function UsersAdminPage() {
                   <button
                     className="users-admin__icon-btn users-admin__icon-btn--warning"
                     onClick={() => openEditModal(user)}
+                    disabled={saving}
                   >
                     ✏️
                   </button>
                   <button
                     className="users-admin__icon-btn users-admin__icon-btn--info"
                     onClick={() => openViewModal(user)}
+                    disabled={saving}
                   >
                     👁
                   </button>
                   <button
                     className="users-admin__icon-btn users-admin__icon-btn--secondary"
                     onClick={() => handleToggleStatus(user)}
+                    disabled={saving}
                   >
                     ⏻
-                  </button>
-                  <button
-                    className="users-admin__icon-btn users-admin__icon-btn--danger"
-                    onClick={() => handleDelete(user)}
-                  >
-                    🗑
                   </button>
                 </div>
               </article>
@@ -511,7 +574,9 @@ export default function UsersAdminPage() {
         initialData={selectedUser}
         onClose={closeModal}
         onSave={handleSave}
-        userTypeOptions={USER_TYPE_OPTIONS}
+        roleOptions={ROLE_OPTIONS}
+        cargoOptions={CARGO_OPTIONS}
+        saving={saving}
       />
     </section>
   );
