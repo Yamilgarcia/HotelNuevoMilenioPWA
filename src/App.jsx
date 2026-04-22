@@ -3,6 +3,7 @@ import AppLayout from "./layout/AppLayout";
 import HabitacionPage from "./pages/HabitacionPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./features/pages/LoginPage";
+import UsersAdminPage from "./features/users/pages/UsersAdminPage";
 
 import { AuthProvider } from "./features/auth/logic/AuthProvider";
 import ProtectedRoute from "./features/routes/ProtectedRoute";
@@ -42,8 +43,12 @@ export default function App() {
             {/* Solo administrador */}
             <Route element={<RoleRoute allowedRoles={["administrador"]} />}>
               <Route
-                path="/RegistrarHabitacion"
+                path="/registrar-habitacion"
                 element={<HabitacionPage />}
+              />
+              <Route
+                path="/usuarios"
+                element={<UsersAdminPage />}
               />
             </Route>
           </Route>

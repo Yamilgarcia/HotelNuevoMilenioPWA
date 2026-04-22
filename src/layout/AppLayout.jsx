@@ -15,40 +15,49 @@ export default function AppLayout() {
         backgroundImage: "url('/gohan.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundAttachment: "fixed",
+        backgroundAttachment: { xs: "scroll", md: "fixed" },
         position: "relative",
       }}
     >
       <Box
         sx={{
-          relative: true,
+          position: "relative",
           zIndex: 10,
           display: "flex",
           flexDirection: "column",
           minHeight: "100vh",
         }}
       >
-        {/* Header con AppBar para mejor estructura */}
         <AppBar
           position="sticky"
+          elevation={0}
           sx={{
             bgcolor: "rgba(255,255,255,0.9)",
             backdropFilter: "blur(10px)",
             color: "#1e293b",
+            borderBottom: "1px solid rgba(15,23,42,0.08)",
           }}
         >
-          <Toolbar sx={{ justifyContent: "space-between" }}>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
+          <Toolbar sx={{ justifyContent: "space-between", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
               <IconButton
                 onClick={() => setMenuOpen(true)}
                 sx={{ mr: 2, color: "#1e293b" }}
-                size="large" // Botón más grande
+                size="large"
               >
                 <MenuIcon fontSize="large" />
               </IconButton>
+
               <Typography
                 variant="h6"
-                sx={{ fontWeight: 800, letterSpacing: -0.5 }}
+                sx={{
+                  fontWeight: 800,
+                  letterSpacing: -0.5,
+                  fontSize: { xs: "1rem", sm: "1.25rem" },
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
               >
                 HOTEL NUEVO MILENIO
               </Typography>
@@ -58,11 +67,16 @@ export default function AppLayout() {
           </Toolbar>
         </AppBar>
 
-        <Box component="main" sx={{ p: { xs: 2, md: 4 }, flexGrow: 1 }}>
+        <Box
+          component="main"
+          sx={{
+            p: { xs: 2, md: 4 },
+            flexGrow: 1,
+          }}
+        >
           <Outlet />
         </Box>
 
-        {/* Menú lateral con estados */}
         <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
       </Box>
     </Box>

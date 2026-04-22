@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import AppRegistrationIcon from "@mui/icons-material/AppRegistration";
+import GroupIcon from "@mui/icons-material/Group";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -25,6 +26,8 @@ export default function SideMenu({ open, onClose }) {
   const navigate = useNavigate();
   const { profile, role, signOut } = useAuth();
 
+  const currentRole = (role || profile?.role || "").toLowerCase();
+
   const menuItems = [
     {
       text: "Panel de Control",
@@ -35,12 +38,20 @@ export default function SideMenu({ open, onClose }) {
     {
       text: "Registrar Habitación",
       icon: <AppRegistrationIcon />,
-      path: "/RegistrarHabitacion",
+      path: "/registrar-habitacion",
+      roles: ["administrador"],
+    },
+    {
+      text: "Usuarios",
+      icon: <GroupIcon />,
+      path: "/usuarios",
       roles: ["administrador"],
     },
   ];
 
-  const visibleItems = menuItems.filter((item) => item.roles.includes(role));
+  const visibleItems = menuItems.filter((item) =>
+    item.roles.includes(currentRole)
+  );
 
   async function handleLogout() {
     await signOut();
@@ -49,9 +60,9 @@ export default function SideMenu({ open, onClose }) {
   }
 
   const roleLabel =
-    role === "administrador"
+    currentRole === "administrador"
       ? "Administrador"
-      : role === "recepcionista"
+      : currentRole === "recepcionista"
         ? "Recepcionista"
         : "Sin rol";
 
@@ -99,7 +110,7 @@ export default function SideMenu({ open, onClose }) {
             size="small"
             sx={{
               mt: 1,
-              bgcolor: role === "administrador" ? "#0f172a" : "#075985",
+              bgcolor: currentRole === "administrador" ? "#0f172a" : "#075985",
               color: "#fff",
               fontWeight: 600,
             }}
@@ -110,7 +121,10 @@ export default function SideMenu({ open, onClose }) {
 
         <List sx={{ px: 2 }}>
           {visibleItems.map((item) => {
-            const selected = location.pathname === item.path;
+            const selected =
+              item.path === "/"
+                ? location.pathname === "/"
+                : location.pathname.startsWith(item.path);
 
             return (
               <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
@@ -121,7 +135,9 @@ export default function SideMenu({ open, onClose }) {
                   selected={selected}
                   sx={{
                     borderRadius: "12px",
-                    bgcolor: selected ? "rgba(56, 189, 248, 0.16)" : "transparent",
+                    bgcolor: selected
+                      ? "rgba(56, 189, 248, 0.16)"
+                      : "transparent",
                     "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
                     "&.Mui-selected": {
                       bgcolor: "rgba(56, 189, 248, 0.16)",

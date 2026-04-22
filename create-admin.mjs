@@ -11,8 +11,8 @@ const supabase = createClient(
   }
 );
 
-const email = "mr5405750@gmail.com";
-const password = "Admin12345!";
+const email = "alejandrabaltodano67@gmail.com";
+const password = "12345!";
 
 const { data, error } = await supabase.auth.admin.createUser({
   email,
