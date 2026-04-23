@@ -29,7 +29,9 @@ export const useRecepcion = () => {
         segundo_apellido: datosFormulario.segundoApellido.trim(),
         nombre_completo: `${datosFormulario.primerNombre} ${datosFormulario.primerApellido}`,
         telefono: datosFormulario.telefono ? datosFormulario.telefono.trim() : null, // <-- AGREGA ESTA LÍNEA
-        ultima_visita: new Date().toISOString() 
+        ultima_visita: new Date().toISOString(),
+        acepta_privacidad: datosFormulario.aceptaPrivacidad,
+        fecha_aceptacion_privacidad: datosFormulario.aceptaPrivacidad ? new Date().toISOString() : null
       };
 
       const { error: clienteError } = await supabase.from('clientes').upsert(datosCliente);
