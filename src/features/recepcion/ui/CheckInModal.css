@@ -1,0 +1,61 @@
+/* CheckInModal.css */
+.modal-fondo {
+    background-color: #f0f2f5 !important;
+}
+
+.panel-seccion {
+    background-color: #ffffff;
+    border-top: 4px solid #28a745;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px;
+    border-radius: 6px;
+    height: 100%; /* Obliga a que las columnas midan lo mismo */
+    display: flex;
+    flex-direction: column;
+}
+
+.titulo-seccion {
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    color: #2c3e50 !important;
+    text-transform: uppercase;
+    margin-bottom: 20px !important;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 8px;
+}
+
+.info-label {
+    color: #007bff;
+    font-size: 0.85rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+}
+
+.info-value {
+    color: #333333 !important;
+    font-size: 1.05rem !important;
+    font-weight: 500 !important;
+    margin-top: 4px !important;
+}
+
+.badge-estado {
+    background-color: #28a745;
+    color: white;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.caja-saldo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 16px 20px;
+    border-left: 6px solid #007bff;
+    border-radius: 6px;
+    margin-top: auto; /* Empuja el saldo al fondo de la tarjeta */
+}

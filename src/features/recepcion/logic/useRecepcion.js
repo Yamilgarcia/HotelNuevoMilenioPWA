@@ -28,6 +28,7 @@ export const useRecepcion = () => {
         primer_apellido: datosFormulario.primerApellido.trim(),
         segundo_apellido: datosFormulario.segundoApellido.trim(),
         nombre_completo: `${datosFormulario.primerNombre} ${datosFormulario.primerApellido}`,
+        telefono: datosFormulario.telefono ? datosFormulario.telefono.trim() : null, // <-- AGREGA ESTA LÍNEA
         ultima_visita: new Date().toISOString() 
       };
 
