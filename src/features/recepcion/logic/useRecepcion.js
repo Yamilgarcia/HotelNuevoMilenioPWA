@@ -9,9 +9,11 @@ export const useRecepcion = () => {
   // ==========================================
   // 1. CHECK-IN: Guarda Cliente y Ocupa Habitación
   // ==========================================
+ // ==========================================
+  // 1. CHECK-IN: Guarda Cliente y Ocupa Habitación
+  // ==========================================
   const realizarCheckIn = async (habitacionId, datosFormulario, precioCobrado) => {
     
-    // CASO A: El navegador sabe de antemano que NO hay internet
     if (!navigator.onLine) {
       addToSyncQueue('CHECK_IN', { habitacionId, datosFormulario, precioCobrado });
       alert("Estás offline 📶. El Check-in se guardó localmente y se enviará al servidor en cuanto regrese el internet.");
@@ -19,6 +21,13 @@ export const useRecepcion = () => {
     }
 
     try {
+      // --- PASO 0: OBTENER EL USUARIO QUE ESTÁ LOGUEADO (La Recepcionista) ---
+      // Obtenemos el ID del usuario actual de la sesión de Supabase
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const recepcionistaId = session?.user?.id; // Si no hay sesión, será undefined
+
+      // --- PASO 1: GUARDAR O ACTUALIZAR EL CLIENTE ---
       const cedulaLimpia = datosFormulario.cedula.trim().toUpperCase();
       
       const datosCliente = {
@@ -28,7 +37,7 @@ export const useRecepcion = () => {
         primer_apellido: datosFormulario.primerApellido.trim(),
         segundo_apellido: datosFormulario.segundoApellido.trim(),
         nombre_completo: `${datosFormulario.primerNombre} ${datosFormulario.primerApellido}`,
-        telefono: datosFormulario.telefono ? datosFormulario.telefono.trim() : null, // <-- AGREGA ESTA LÍNEA
+        telefono: datosFormulario.telefono || null,
         ultima_visita: new Date().toISOString(),
         acepta_privacidad: datosFormulario.aceptaPrivacidad,
         fecha_aceptacion_privacidad: datosFormulario.aceptaPrivacidad ? new Date().toISOString() : null
@@ -37,33 +46,53 @@ export const useRecepcion = () => {
       const { error: clienteError } = await supabase.from('clientes').upsert(datosCliente);
       if (clienteError) throw clienteError;
 
+      // --- PASO 2: ACTUALIZAR LA HABITACIÓN COMO "OCUPADA" ---
+      const huespedInfo = {
+        cedula: cedulaLimpia,
+        nombre: datosCliente.nombre_completo,
+        personas: Number(datosFormulario.personas),
+        fechaEntrada: datosFormulario.fechaEntrada, // Usamos la fecha del formulario, no la de 'now'
+        fechaSalida: datosFormulario.fechaSalida,
+        precioPactado: Number(precioCobrado),
+        estadoPago: "PAGADO", 
+        consumos: [] 
+      };
+
       const { error: habError } = await supabase.from('habitaciones').update({
           estado: "Ocupada",
-          huesped_actual: {
-            cedula: cedulaLimpia,
-            nombre: datosCliente.nombre_completo,
-            personas: Number(datosFormulario.personas),
-            fechaEntrada: new Date().toISOString(),
-            precioPactado: Number(precioCobrado),
-            estadoPago: "PAGADO", 
-            consumos: [] 
-          },
+          huesped_actual: huespedInfo,
           updated_at: new Date().toISOString()
-        }).eq('id', habitacionId); 
+      }).eq('id', habitacionId); 
 
       if (habError) throw habError;
+
+      // --- PASO 3: CREAR EL REGISTRO HISTÓRICO (La novedad) ---
+      const { error: historialError } = await supabase.from('historial_hospedajes').insert([{
+         cliente_cedula: cedulaLimpia,
+         habitacion_id: habitacionId,
+         fecha_entrada: datosFormulario.fechaEntrada,
+         fecha_salida: datosFormulario.fechaSalida,
+         personas: Number(datosFormulario.personas),
+         total_pagar: Number(precioCobrado),
+         estado_pago: "PAGADO",
+         recepcionista_id: recepcionistaId // ¡Aquí queda grabada la huella de quién lo hizo!
+      }]);
+
+      if (historialError) {
+          console.error("Error guardando el historial:", historialError);
+          // Opcional: No lanzamos el error para no asustar al usuario si la reserva sí se hizo,
+          // pero puedes agregar un alert aquí si lo consideras crítico.
+      }
 
     } catch (error) {
       console.error("Error en Check-in:", error);
 
-      // CASO B: El navegador creía tener internet, pero falló en el camino (Service Worker 503 o caída repentina)
       if (error.offline || error.message === 'Failed to fetch' || error.status === 503) {
         addToSyncQueue('CHECK_IN', { habitacionId, datosFormulario, precioCobrado });
         alert("La conexión falló durante el envío 📶. El Check-in se guardó localmente para sincronizar más tarde.");
         return { offlineDataSaved: true };
       }
 
-      // CASO C: Error de RLS (Supabase te bloquea por reglas de seguridad)
       if (error.code === '42501' || (error.message && error.message.includes('RLS'))) {
         navigate('/no-autorizado'); 
         throw error;
