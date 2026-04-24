@@ -417,10 +417,14 @@ export default function UsersAdminPage() {
           bgcolor: "#1e293b",
           boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
           border: "1px solid rgba(255,255,255,0.1)",
-          overflow: "hidden",
-        }}
+          // ESTO PERMITE VER TODO SIN OCULTAR:
+    overflowX: "auto",
+    // Scrollbar estilizado para que sea parte del diseño
+    "&::-webkit-scrollbar": { height: "8px" },
+    "&::-webkit-scrollbar-thumb": { bgcolor: "#38bdf8", borderRadius: "4px" }
+  }}
       >
-        <Table sx={{ minWidth: 900 }} size="medium">
+        <Table sx={{ minWidth: 1200 }} size="medium">
           <TableHead>
             <TableRow>
               <TableCell sx={tableCellHeadStyle}>Perfil</TableCell>
