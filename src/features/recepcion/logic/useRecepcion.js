@@ -8,10 +8,7 @@ export const useRecepcion = () => {
 
   // ==========================================
   // 1. CHECK-IN: Guarda Cliente y Ocupa Habitación
-  // ==========================================
- // ==========================================
-  // 1. CHECK-IN: Guarda Cliente y Ocupa Habitación
-  // ==========================================
+  
   const realizarCheckIn = async (habitacionId, datosFormulario, precioCobrado) => {
     
     if (!navigator.onLine) {

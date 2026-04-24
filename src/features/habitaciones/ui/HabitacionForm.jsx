@@ -15,7 +15,7 @@ const DETALLES_HABITACIONES = {
 export default function HabitacionForm({ initialData, onSave, onClose }) {
   const { showToast } = useToast();
   
-  const [form, setForm] = useState(initialData || {
+  const [form, setForm] = useState({
     numero: "",
     categoria: "Sencilla 1",
     precio: 300,
@@ -24,17 +24,31 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
 
   const [errors, setErrors] = useState({});
 
+  // 1. NUEVO: Escuchar cuando initialData llega de Supabase para llenar los campos
+  useEffect(() => {
+    if (initialData) {
+      setForm({
+        numero: initialData.numero || "",
+        categoria: initialData.categoria || "Sencilla 1",
+        precio: initialData.precio || 300,
+        amenidades: initialData.amenidades || ""
+      });
+    }
+  }, [initialData]);
+
   // Cada vez que cambie la categoría, actualizamos precio y amenidades automáticamente
   useEffect(() => {
     if (!initialData) {
       const info = DETALLES_HABITACIONES[form.categoria];
-      setForm(prev => ({ 
-        ...prev, 
-        precio: info.precio,
-        amenidades: info.amenidades 
-      }));
+      if (info) {
+        setForm(prev => ({ 
+          ...prev, 
+          precio: info.precio,
+          amenidades: info.amenidades 
+        }));
+      }
     }
-  }, [form.categoria]);
+  }, [form.categoria, initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -44,25 +58,27 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
 
   const validate = () => {
     const newErrors = {};
-    if (!form.numero.trim()) newErrors.numero = "Asigná un número de habitación";
+    // Agregamos .toString() por si el número viene como entero de la BD
+    if (!form.numero.toString().trim()) newErrors.numero = "Asigná un número de habitación";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+ const handleSubmit = async (e) => { // Agregamos async
     e.preventDefault();
     if (!validate()) return;
 
-    // Solo enviamos los datos que coinciden con las columnas de Supabase
-    onSave({ 
+    // Usamos await para esperar a que el hook termine de guardar en Supabase
+    await onSave({ 
       ...form, 
       precio: Number(form.precio)
-    });
+    }, initialData?.id);
 
-    showToast("✅ Habitación registrada", "success");
+    // NOTA: Borramos el showToast de aquí porque el hook ya se encarga de mostrarlo
     if (onClose) onClose();
   };
 
+  // TU DISEÑO INTACTO A PARTIR DE AQUÍ:
   return (
     <Box component="form" onSubmit={handleSubmit} className="habitacion-form-container">
       <Box textAlign="center">

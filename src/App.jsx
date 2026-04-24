@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import HabitacionPage from "./pages/HabitacionPage";
+import HabitacionesAdmin from "./pages/HabitacionesAdmin"; // <-- Importa la nueva tabla
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./features/pages/LoginPage";
 import UsersAdminPage from "./features/users/pages/UsersAdminPage";
@@ -38,18 +39,31 @@ export default function App() {
               }
             >
               <Route path="/" element={<DashboardPage />} />
+
+
+              
             </Route>
 
             {/* Solo administrador */}
             <Route element={<RoleRoute allowedRoles={["administrador"]} />}>
+              {/* Ruta actualizada para reflejar que está dentro de configuración */}
+
               <Route
-                path="/registrar-habitacion"
+                path="/configuracion/habitaciones"
+                element={<HabitacionesAdmin />}
+              />
+
+              <Route
+                path="/configuracion/Registrarhabitaciones"
                 element={<HabitacionPage />}
               />
+
               <Route
-                path="/usuarios"
-                element={<UsersAdminPage />}
+                path="/configuracion/habitaciones/editar/:id"
+                element={<HabitacionPage />}
               />
+
+              <Route path="/usuarios" element={<UsersAdminPage />} />
             </Route>
           </Route>
         </Route>
