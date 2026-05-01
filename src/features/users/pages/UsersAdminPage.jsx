@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../supabase.config";
-import UserFormModal from "../components/UserFormModal"; // Mantendremos tu modal funcionando
+import UserFormModal from "../components/UserFormModal";
 
-// Importaciones de Material-UI
 import {
   Box,
   Typography,
@@ -23,13 +22,13 @@ import {
   Avatar,
 } from "@mui/material";
 
-// Iconos
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import SyncIcon from "@mui/icons-material/Sync";
 import GroupIcon from "@mui/icons-material/Group";
+import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 
 const ROLE_OPTIONS = ["administrador", "recepcionista"];
 const CARGO_OPTIONS = [
@@ -54,7 +53,6 @@ const EMPTY_USER = {
   avatar_url: "",
 };
 
-// --- Helpers ---
 function normalizeProfile(row) {
   return {
     id: row.id ?? "",
@@ -85,9 +83,11 @@ function formatDate(dateValue) {
 function safeText(value) {
   return value?.trim() ? value : "Pendiente";
 }
+
 function getStatusLabel(status) {
   return status === "inactivo" ? "Inactivo" : "Activo";
 }
+
 function getRoleLabel(role) {
   if (role === "administrador") return "Administrador";
   if (role === "recepcionista") return "Recepcionista";
@@ -103,13 +103,26 @@ function getInitials(user) {
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
 }
-// ----------------
+
+async function getFunctionErrorMessage(fnError, fallback) {
+  if (fnError?.context?.json) {
+    try {
+      const body = await fnError.context.json();
+      if (body?.error) return body.error;
+    } catch {
+      return fnError.message || fallback;
+    }
+  }
+
+  return fnError?.message || fallback;
+}
 
 export default function UsersAdminPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -127,7 +140,7 @@ export default function UsersAdminPage() {
     const { data, error: fetchError } = await supabase
       .from("profiles")
       .select(
-        "id, email, nombre, role, username, phone, address, birth_date, status, cargo, avatar_url, created_at, updated_at",
+        "id, email, nombre, role, username, phone, address, birth_date, status, cargo, avatar_url, created_at, updated_at"
       )
       .order("created_at", { ascending: false });
 
@@ -137,6 +150,7 @@ export default function UsersAdminPage() {
     } else {
       setUsers((data || []).map(normalizeProfile));
     }
+
     setLoading(false);
   }, []);
 
@@ -146,9 +160,11 @@ export default function UsersAdminPage() {
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
+
     return users.filter((user) => {
       const statusOk =
         statusFilter === "todos" ? true : user.status === statusFilter;
+
       const haystack = [
         user.nombre,
         user.username,
@@ -161,6 +177,7 @@ export default function UsersAdminPage() {
       ]
         .join(" ")
         .toLowerCase();
+
       const searchOk = !term || haystack.includes(term);
       return statusOk && searchOk;
     });
@@ -173,29 +190,97 @@ export default function UsersAdminPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, pageSize]);
+
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
+
+  function openCreateModal() {
+    setSelectedUser({
+      ...EMPTY_USER,
+      role: "recepcionista",
+      status: "activo",
+    });
+    setModalMode("create");
+    setModalOpen(true);
+    setError("");
+    setSuccess("");
+  }
 
   function openEditModal(user) {
     setSelectedUser(user);
     setModalMode("edit");
     setModalOpen(true);
+    setError("");
+    setSuccess("");
   }
+
   function openViewModal(user) {
     setSelectedUser(user);
     setModalMode("view");
     setModalOpen(true);
+    setError("");
+    setSuccess("");
   }
+
   function closeModal() {
     setModalOpen(false);
     setSelectedUser(EMPTY_USER);
   }
 
-  async function handleSave(payload) {
-    if (!payload?.id) return;
+  async function handleCreate(payload) {
     setSaving(true);
     setError("");
+    setSuccess("");
+
+    const body = {
+      email: payload.email,
+      password: payload.password,
+      nombre: payload.nombre,
+      username: payload.username || null,
+      phone: payload.phone || null,
+      address: payload.address || null,
+      birth_date: payload.birth_date || null,
+      cargo: payload.cargo || null,
+      role: payload.role,
+      status: payload.status,
+      avatar_url: payload.avatar_url || null,
+    };
+
+    const { data, error: fnError } = await supabase.functions.invoke(
+      "admin-create-user",
+      { body }
+    );
+
+    if (fnError) {
+      setError(
+        await getFunctionErrorMessage(
+          fnError,
+          "No se pudo crear el usuario."
+        )
+      );
+      setSaving(false);
+      return;
+    }
+
+    if (data?.error) {
+      setError(data.error);
+      setSaving(false);
+      return;
+    }
+
+    setSuccess(data?.message || "Usuario creado correctamente.");
+    setModalOpen(false);
+    setSaving(false);
+    await loadUsers();
+  }
+
+  async function handleUpdate(payload) {
+    if (!payload?.id) return;
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
 
     const updates = {
       nombre: payload.nombre.trim(),
@@ -218,20 +303,36 @@ export default function UsersAdminPage() {
 
     if (updateError) {
       setError(updateError.message || "No se pudo actualizar el usuario.");
-    } else {
-      const nextUser = normalizeProfile(data);
-      setUsers((current) =>
-        current.map((item) => (item.id === nextUser.id ? nextUser : item)),
-      );
-      setModalOpen(false);
+      setSaving(false);
+      return;
     }
+
+    const nextUser = normalizeProfile(data);
+
+    setUsers((current) =>
+      current.map((item) => (item.id === nextUser.id ? nextUser : item))
+    );
+
+    setSuccess("Usuario actualizado correctamente.");
+    setModalOpen(false);
     setSaving(false);
+  }
+
+  async function handleSave(payload) {
+    if (modalMode === "create") {
+      await handleCreate(payload);
+      return;
+    }
+
+    await handleUpdate(payload);
   }
 
   async function handleToggleStatus(user) {
     const nextStatus = user.status === "activo" ? "inactivo" : "activo";
+
     setSaving(true);
     setError("");
+    setSuccess("");
 
     const { data, error: updateError } = await supabase
       .from("profiles")
@@ -242,16 +343,25 @@ export default function UsersAdminPage() {
 
     if (updateError) {
       setError(updateError.message || "No se pudo cambiar el estado.");
-    } else {
-      const nextUser = normalizeProfile(data);
-      setUsers((current) =>
-        current.map((item) => (item.id === nextUser.id ? nextUser : item)),
-      );
+      setSaving(false);
+      return;
     }
+
+    const nextUser = normalizeProfile(data);
+
+    setUsers((current) =>
+      current.map((item) => (item.id === nextUser.id ? nextUser : item))
+    );
+
+    setSuccess(
+      nextStatus === "activo"
+        ? "Usuario activado correctamente."
+        : "Usuario desactivado correctamente."
+    );
+
     setSaving(false);
   }
 
-  // --- ESTILOS COMPARTIDOS ---
   const tableCellHeadStyle = {
     color: "#38bdf8",
     fontWeight: "bold",
@@ -260,6 +370,7 @@ export default function UsersAdminPage() {
     textTransform: "uppercase",
     fontSize: "0.85rem",
   };
+
   const tableCellBodyStyle = {
     color: "white",
     borderBottom: "1px solid rgba(255,255,255,0.05)",
@@ -274,7 +385,6 @@ export default function UsersAdminPage() {
         paddingBottom: "2rem",
       }}
     >
-      {/* HEADER */}
       <Box
         sx={{
           display: "flex",
@@ -295,25 +405,41 @@ export default function UsersAdminPage() {
             gap: 1.5,
           }}
         >
-          <GroupIcon sx={{ color: "#38bdf8", fontSize: "2.5rem" }} />{" "}
+          <GroupIcon sx={{ color: "#38bdf8", fontSize: "2.5rem" }} />
           Administración de Usuarios
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<SyncIcon />}
-          onClick={loadUsers}
-          disabled={loading || saving}
-          sx={{
-            color: "#38bdf8",
-            borderColor: "#38bdf8",
-            "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
-          }}
-        >
-          {loading ? "Cargando..." : "Recargar"}
-        </Button>
+
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          <Button
+            variant="contained"
+            startIcon={<PersonAddAlt1Icon />}
+            onClick={openCreateModal}
+            disabled={saving}
+            sx={{
+              bgcolor: "#2563eb",
+              fontWeight: 700,
+              "&:hover": { bgcolor: "#1d4ed8" },
+            }}
+          >
+            Agregar usuario
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<SyncIcon />}
+            onClick={loadUsers}
+            disabled={loading || saving}
+            sx={{
+              color: "#38bdf8",
+              borderColor: "#38bdf8",
+              "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
+            }}
+          >
+            {loading ? "Cargando..." : "Recargar"}
+          </Button>
+        </Box>
       </Box>
 
-      {/* MENSAJE DE ERROR */}
       {error && (
         <Paper
           sx={{
@@ -329,7 +455,21 @@ export default function UsersAdminPage() {
         </Paper>
       )}
 
-      {/* BARRA DE BÚSQUEDA Y FILTROS */}
+      {success && (
+        <Paper
+          sx={{
+            p: 2,
+            mb: 3,
+            bgcolor: "rgba(16, 185, 129, 0.12)",
+            color: "#10b981",
+            border: "1px solid #10b981",
+            borderRadius: 2,
+          }}
+        >
+          <strong>Listo:</strong> {success}
+        </Paper>
+      )}
+
       <Paper
         sx={{
           p: 2,
@@ -344,7 +484,6 @@ export default function UsersAdminPage() {
         }}
       >
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-          {/* Filtro Estado */}
           <TextField
             select
             size="small"
@@ -353,7 +492,6 @@ export default function UsersAdminPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             sx={{
               width: "150px",
-              // Esto hace blanca la letra de la opción seleccionada (cuando está cerrado)
               "& .MuiSelect-select": { color: "white" },
               "& .MuiOutlinedInput-root": {
                 bgcolor: "rgba(0,0,0,0.2)",
@@ -363,14 +501,13 @@ export default function UsersAdminPage() {
               "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
               "& .MuiSelect-icon": { color: "white" },
             }}
-            // ESTO ES LO NUEVO: Estiliza la lista flotante que se abre
             SelectProps={{
               MenuProps: {
                 PaperProps: {
                   sx: {
-                    bgcolor: "#1e293b", // Fondo oscuro
-                    color: "white", // Letras blancas
-                    border: "1px solid rgba(255,255,255,0.1)", // Borde sutil
+                    bgcolor: "#1e293b",
+                    color: "white",
+                    border: "1px solid rgba(255,255,255,0.1)",
                   },
                 },
               },
@@ -382,7 +519,6 @@ export default function UsersAdminPage() {
           </TextField>
         </Box>
 
-        {/* Buscador */}
         <TextField
           size="small"
           placeholder="Buscar nombre, usuario, correo..."
@@ -409,7 +545,6 @@ export default function UsersAdminPage() {
         />
       </Paper>
 
-      {/* TABLA DE DATOS */}
       <TableContainer
         component={Paper}
         sx={{
@@ -417,12 +552,13 @@ export default function UsersAdminPage() {
           bgcolor: "#1e293b",
           boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
           border: "1px solid rgba(255,255,255,0.1)",
-          // ESTO PERMITE VER TODO SIN OCULTAR:
-    overflowX: "auto",
-    // Scrollbar estilizado para que sea parte del diseño
-    "&::-webkit-scrollbar": { height: "8px" },
-    "&::-webkit-scrollbar-thumb": { bgcolor: "#38bdf8", borderRadius: "4px" }
-  }}
+          overflowX: "auto",
+          "&::-webkit-scrollbar": { height: "8px" },
+          "&::-webkit-scrollbar-thumb": {
+            bgcolor: "#38bdf8",
+            borderRadius: "4px",
+          },
+        }}
       >
         <Table sx={{ minWidth: 1200 }} size="medium">
           <TableHead>
@@ -469,10 +605,10 @@ export default function UsersAdminPage() {
                     transition: "background-color 0.2s",
                   }}
                 >
-                  {/* Célula: Perfil */}
                   <TableCell sx={tableCellBodyStyle}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <Avatar
+                        src={user.avatar_url || undefined}
                         sx={{
                           bgcolor: "#0ea5e9",
                           color: "white",
@@ -499,7 +635,6 @@ export default function UsersAdminPage() {
                     </Box>
                   </TableCell>
 
-                  {/* Célula: Contacto */}
                   <TableCell sx={tableCellBodyStyle}>
                     <Typography variant="body2" color="white">
                       📞 {safeText(user.phone)}
@@ -512,7 +647,6 @@ export default function UsersAdminPage() {
                     </Typography>
                   </TableCell>
 
-                  {/* Célula: Cargo y Rol */}
                   <TableCell sx={tableCellBodyStyle}>
                     <Typography variant="body2" color="white" fontWeight="bold">
                       {safeText(user.cargo)}
@@ -525,7 +659,6 @@ export default function UsersAdminPage() {
                     </Typography>
                   </TableCell>
 
-                  {/* Célula: Estatus */}
                   <TableCell align="center" sx={tableCellBodyStyle}>
                     <Chip
                       label={getStatusLabel(user.status)}
@@ -539,12 +672,13 @@ export default function UsersAdminPage() {
                             : "rgba(16, 185, 129, 0.2)",
                         color:
                           user.status === "inactivo" ? "#fca5a5" : "#6ee7b7",
-                        border: `1px solid ${user.status === "inactivo" ? "#ef4444" : "#10b981"}`,
+                        border: `1px solid ${
+                          user.status === "inactivo" ? "#ef4444" : "#10b981"
+                        }`,
                       }}
                     />
                   </TableCell>
 
-                  {/* Célula: Acciones */}
                   <TableCell align="center" sx={tableCellBodyStyle}>
                     <IconButton
                       onClick={() => openViewModal(user)}
@@ -556,6 +690,7 @@ export default function UsersAdminPage() {
                     >
                       <VisibilityIcon fontSize="small" />
                     </IconButton>
+
                     <IconButton
                       onClick={() => openEditModal(user)}
                       disabled={saving}
@@ -566,11 +701,13 @@ export default function UsersAdminPage() {
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
+
                     <IconButton
                       onClick={() => handleToggleStatus(user)}
                       disabled={saving}
                       sx={{
-                        color: user.status === "activo" ? "#ef4444" : "#10b981",
+                        color:
+                          user.status === "activo" ? "#ef4444" : "#10b981",
                         "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)" },
                       }}
                       title={
@@ -586,15 +723,16 @@ export default function UsersAdminPage() {
           </TableBody>
         </Table>
 
-        {/* PAGINACIÓN (Conectada a tu lógica manual) */}
         <TablePagination
           rowsPerPageOptions={[5, 10, 20]}
           component="div"
           count={filteredUsers.length}
           rowsPerPage={pageSize}
-          page={currentPage - 1} // MUI usa base 0, tu lógica base 1
+          page={currentPage - 1}
           onPageChange={(e, newPage) => setCurrentPage(newPage + 1)}
-          onRowsPerPageChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+          onRowsPerPageChange={(e) =>
+            setPageSize(parseInt(e.target.value, 10))
+          }
           labelRowsPerPage="Registros:"
           labelDisplayedRows={({ from, to, count }) =>
             `${from}-${to} de ${count}`
@@ -613,7 +751,6 @@ export default function UsersAdminPage() {
         />
       </TableContainer>
 
-      {/* Modal de Formulario */}
       <UserFormModal
         open={modalOpen}
         mode={modalMode}
