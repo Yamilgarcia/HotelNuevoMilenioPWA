@@ -29,6 +29,7 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
 
   const [errors, setErrors] = useState({});
 
+  // Carga inicial de datos si estamos editando
   useEffect(() => {
     if (initialData) {
       setForm({
@@ -40,22 +41,24 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
     }
   }, [initialData]);
 
-  useEffect(() => {
-    if (!initialData) {
-      const info = DETALLES_HABITACIONES[form.categoria];
-      if (info) {
-        setForm(prev => ({ 
-          ...prev, 
-          precio: info.precio,
-          amenidades: info.amenidades 
-        }));
-      }
-    }
-  }, [form.categoria, initialData]);
-
+  // --- SOLUCIÓN: Interceptamos el cambio directo en el input ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+
+    // Si el usuario acaba de cambiar la "categoria" en el combo:
+    if (name === "categoria") {
+      const info = DETALLES_HABITACIONES[value];
+      setForm((prev) => ({ 
+        ...prev, 
+        categoria: value,
+        precio: info ? info.precio : prev.precio,
+        amenidades: info ? info.amenidades : prev.amenidades
+      }));
+    } else {
+      // Si cambia cualquier otra cosa (numero o precio final)
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
+
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -118,7 +121,6 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
         fullWidth
         margin="normal"
         SelectProps={{
-          // Esto soluciona que el menú flotante salga blanco en modo oscuro
           MenuProps: {
             PaperProps: {
               sx: {
