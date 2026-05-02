@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { TextField, Button, MenuItem, Box, Typography, Alert, Divider } from "@mui/material";
+import { TextField, Button, MenuItem, Box, Typography, Divider, InputAdornment } from "@mui/material";
+// Iconos para darle un toque premium
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import EditIcon from '@mui/icons-material/Edit';
 import { useToast } from "../../../components/ToastContext";
 import "./HabitacionForm.css";
 
@@ -24,7 +29,6 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
 
   const [errors, setErrors] = useState({});
 
-  // 1. NUEVO: Escuchar cuando initialData llega de Supabase para llenar los campos
   useEffect(() => {
     if (initialData) {
       setForm({
@@ -36,7 +40,6 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
     }
   }, [initialData]);
 
-  // Cada vez que cambie la categoría, actualizamos precio y amenidades automáticamente
   useEffect(() => {
     if (!initialData) {
       const info = DETALLES_HABITACIONES[form.categoria];
@@ -58,32 +61,32 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
 
   const validate = () => {
     const newErrors = {};
-    // Agregamos .toString() por si el número viene como entero de la BD
     if (!form.numero.toString().trim()) newErrors.numero = "Asigná un número de habitación";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
- const handleSubmit = async (e) => { // Agregamos async
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
-    // Usamos await para esperar a que el hook termine de guardar en Supabase
     await onSave({ 
       ...form, 
       precio: Number(form.precio)
     }, initialData?.id);
 
-    // NOTA: Borramos el showToast de aquí porque el hook ya se encarga de mostrarlo
     if (onClose) onClose();
   };
 
-  // TU DISEÑO INTACTO A PARTIR DE AQUÍ:
   return (
     <Box component="form" onSubmit={handleSubmit} className="habitacion-form-container">
       <Box textAlign="center">
         <Typography variant="h5" className="form-title">
-          {initialData ? "Editar Habitación" : "Nueva Habitación"}
+          {initialData ? (
+            <><EditIcon sx={{ color: "#38bdf8", mr: 1, verticalAlign: 'middle' }} /> Editar Habitación</>
+          ) : (
+            <><AddCircleOutlineIcon sx={{ color: "#38bdf8", mr: 1, verticalAlign: 'middle' }} /> Nueva Habitación</>
+          )}
         </Typography>
       </Box>
 
@@ -97,6 +100,13 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
         fullWidth
         className="input-field"
         margin="normal"
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <MeetingRoomIcon sx={{ color: "rgba(255,255,255,0.4)" }} />
+            </InputAdornment>
+          ),
+        }}
       />
 
       <TextField
@@ -107,6 +117,18 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
         onChange={handleChange}
         fullWidth
         margin="normal"
+        SelectProps={{
+          // Esto soluciona que el menú flotante salga blanco en modo oscuro
+          MenuProps: {
+            PaperProps: {
+              sx: {
+                bgcolor: '#1e293b',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }
+            }
+          }
+        }}
       >
         {Object.keys(DETALLES_HABITACIONES).map((opcion) => (
           <MenuItem key={opcion} value={opcion}>
@@ -115,14 +137,17 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
         ))}
       </TextField>
 
-      <Box className="price-display" sx={{ my: 2 }}>
-        <Typography variant="body2">Amenidades:</Typography>
-        <Typography variant="caption" sx={{ fontStyle: 'italic' }}>{form.amenidades}</Typography>
-        <Divider sx={{ my: 1 }} />
-        <Typography variant="h6">Precio: C$ {form.precio}</Typography>
+      <Box className="price-display">
+        <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)", mb: 0.5 }}>
+          Amenidades incluidas:
+        </Typography>
+        <Typography variant="body1" sx={{ fontWeight: 500, color: "white" }}>
+          {form.amenidades}
+        </Typography>
+        <Divider sx={{ my: 1.5 }} />
+        <Typography variant="h6">Precio Sugerido: C$ {form.precio}</Typography>
       </Box>
 
-      {/* Opción para editar precio manualmente si el admin quiere */}
       <TextField
         label="Precio Final (Editable)"
         name="precio"
@@ -132,10 +157,17 @@ export default function HabitacionForm({ initialData, onSave, onClose }) {
         fullWidth
         className="input-field"
         margin="normal"
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <AttachMoneyIcon sx={{ color: "rgba(255,255,255,0.4)" }} />
+            </InputAdornment>
+          ),
+        }}
       />
 
       <Button type="submit" variant="contained" className="submit-button" fullWidth>
-        {initialData ? "Actualizar" : "Guardar en Sistema"}
+        {initialData ? "Actualizar Datos" : "Guardar Habitación"}
       </Button>
     </Box>
   );

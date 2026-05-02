@@ -27,24 +27,37 @@
 }
 
 /* --- COLORES SÓLIDOS (Estilo Referencia) --- */
-/* Verde para Libre */
+/* --- COLORES SÓLIDOS (Actualizado a la nueva lógica) --- */
+
+/* Libre -> Verde */
 .room-free {
   background-color: #008f39; 
 }
 
-/* Rojo/Naranja para Ocupada */
+/* Ocupada -> Naranja (Huésped normal en tiempo) */
 .room-occupied {
-  background-color: #cb3234; 
+  background-color: #fa7b05; 
 }
 
-/* Amarillo/Naranja para Sucia/Mantenimiento */
+/* Tiempo Rebasado / Retrasada -> Rojo (Se pasó de su hora de salida) */
+.room-overdue {
+  background-color: #cb3234; /* Mantenemos tu rojo fuerte aquí */
+}
+
+/* Sucia / En Limpieza -> Azul Cielo (Limpieza intermedia o normal) */
 .room-dirty {
-  background-color: #f39c12;
+  background-color: #0ea5e9; /* Un azul cielo con buen contraste para las letras blancas */
 }
 
-/* Gris para Inactiva */
-.room-inactive {
+/* Mantenimiento -> Gris claro */
+.room-maintenance {
   background-color: #7f8c8d;
+}
+
+/* Inactiva -> Gris oscuro azulado */
+.room-inactive {
+  background-color: #34495e;
+  opacity: 0.8; /* Se ve un poco "apagada" para denotar inactividad */
 }
 
 /* --- ESTRUCTURA INTERNA --- */

@@ -37,7 +37,11 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   };
 
   const hoy = new Date();
-  const manana = new Date(hoy.getTime() + 24 * 60 * 60 * 1000);
+
+  // Calculamos el día de mañana y fijamos la hora a las 11:00 AM
+  const manana = new Date(hoy);
+  manana.setDate(hoy.getDate() + 1); // Suma 1 día
+  manana.setHours(11, 0, 0, 0); // Fija la hora a las 11:00:00 exactas
 
   const initialState = {
     tipoDocumento: "Cédula",
@@ -71,8 +75,15 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   const diasEstadia = useMemo(() => {
     const f1 = new Date(form.fechaEntrada);
     const f2 = new Date(form.fechaSalida);
+
+    // TRUCO: Forzamos ambas fechas a la medianoche (00:00:00)
+    // Así el sistema ignora si entró a las 10am y salió a las 11am, solo cuenta los días
+    f1.setHours(0, 0, 0, 0);
+    f2.setHours(0, 0, 0, 0);
+
     const diffTime = Math.abs(f2 - f1);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); // Cambiamos ceil por round
+
     return diffDays > 0 ? diffDays : 1;
   }, [form.fechaEntrada, form.fechaSalida]);
 
@@ -484,85 +495,172 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                 </Box>
 
                 <Box
-  sx={{
-    mt: 3,
-    p: 2,
-    bgcolor: "#f8f9fa",
-    border: "1px solid #dee2e6",
-    borderRadius: 1,
-  }}
->
-  <Typography
-    variant="caption"
-    sx={{
-      fontWeight: "bold",
-      color: "#2c3e50",
-      display: "block",
-      mb: 1,
-    }}
-  >
-    DECLARACIÓN DE PRIVACIDAD Y CONSENTIMIENTO INFORMADO
-  </Typography>
-  
-  {/* CAJA DE TEXTO LEGAL CON SCROLL */}
-  <Box
-    sx={{
-      height: "180px", /* Altura incrementada para que se vea más texto */
-      overflowY: "auto", /* 'auto' pone la barra de scroll solo si es necesario */
-      bgcolor: "#ffffff", /* Fondo blanco para facilitar la lectura */
-      border: "1px solid #ced4da", /* Borde interno tipo contrato */
-      borderRadius: 1,
-      p: 1.5,
-      mb: 1.5,
-    }}
-  >
-    <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1, lineHeight: 1.4 }}>
-      En cumplimiento con la Ley N.º 787, Ley de Protección de Datos Personales de la República de Nicaragua, y en concordancia con las mejores prácticas internacionales de privacidad (GDPR), el Hotel Nuevo Milenio le informa lo siguiente:
-    </Typography>
-    
-    <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1, lineHeight: 1.4 }}>
-      <strong>Finalidad de la Recolección:</strong> Los datos personales extraídos de su documento de identidad (Cédula) mediante escaneo óptico (OCR) o proporcionados verbalmente, serán utilizados exclusivamente para gestionar su reserva, realizar el registro de entrada (check-in) y salida (check-out), emitir la facturación correspondiente y mantener el control de seguridad interno del establecimiento.
-    </Typography>
+                  sx={{
+                    mt: 3,
+                    p: 2,
+                    bgcolor: "#f8f9fa",
+                    border: "1px solid #dee2e6",
+                    borderRadius: 1,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: "bold",
+                      color: "#2c3e50",
+                      display: "block",
+                      mb: 1,
+                    }}
+                  >
+                    DECLARACIÓN DE PRIVACIDAD Y CONSENTIMIENTO INFORMADO
+                  </Typography>
 
-    <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1, lineHeight: 1.4 }}>
-      <strong>Procesamiento y Almacenamiento:</strong> Sus datos serán almacenados de forma segura en nuestra base de datos cifrada y no serán compartidos, vendidos, ni transferidos a terceros ajenos a la administración del hotel, salvo requerimiento expreso de autoridades competentes según lo dicta la ley.
-    </Typography>
+                  {/* CAJA DE TEXTO LEGAL CON SCROLL */}
+                  <Box
+                    sx={{
+                      height:
+                        "180px" /* Altura incrementada para que se vea más texto */,
+                      overflowY:
+                        "auto" /* 'auto' pone la barra de scroll solo si es necesario */,
+                      bgcolor:
+                        "#ffffff" /* Fondo blanco para facilitar la lectura */,
+                      border:
+                        "1px solid #ced4da" /* Borde interno tipo contrato */,
+                      borderRadius: 1,
+                      p: 1.5,
+                      mb: 1.5,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#333",
+                        display: "block",
+                        textAlign: "justify",
+                        mb: 1,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      En cumplimiento con la Ley N.º 787, Ley de Protección de
+                      Datos Personales de la República de Nicaragua, y en
+                      concordancia con las mejores prácticas internacionales de
+                      privacidad (GDPR), el Hotel Nuevo Milenio le informa lo
+                      siguiente:
+                    </Typography>
 
-    <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1, lineHeight: 1.4 }}>
-      <strong>Análisis de Datos:</strong> El hotel podrá utilizar información transaccional anonimizada (fechas de estadía, procedencia) con fines estadísticos internos para mejorar la calidad del servicio. No se utilizarán sus datos de contacto para campañas de mercadeo sin su autorización expresa adicional.
-    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#333",
+                        display: "block",
+                        textAlign: "justify",
+                        mb: 1,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <strong>Finalidad de la Recolección:</strong> Los datos
+                      personales extraídos de su documento de identidad (Cédula)
+                      mediante escaneo óptico (OCR) o proporcionados
+                      verbalmente, serán utilizados exclusivamente para
+                      gestionar su reserva, realizar el registro de entrada
+                      (check-in) y salida (check-out), emitir la facturación
+                      correspondiente y mantener el control de seguridad interno
+                      del establecimiento.
+                    </Typography>
 
-    <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1.5, lineHeight: 1.4 }}>
-      <strong>Derechos del Titular:</strong> Usted tiene derecho a solicitar el acceso, rectificación, o cancelación de sus datos personales de nuestros registros en cualquier momento, dirigiéndose a la administración del hotel.
-    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#333",
+                        display: "block",
+                        textAlign: "justify",
+                        mb: 1,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <strong>Procesamiento y Almacenamiento:</strong> Sus datos
+                      serán almacenados de forma segura en nuestra base de datos
+                      cifrada y no serán compartidos, vendidos, ni transferidos
+                      a terceros ajenos a la administración del hotel, salvo
+                      requerimiento expreso de autoridades competentes según lo
+                      dicta la ley.
+                    </Typography>
 
-    <Typography variant="caption" sx={{ color: "#000", display: "block", textAlign: "justify", lineHeight: 1.4, fontStyle: "italic", borderTop: "1px dashed #ccc", pt: 1 }}>
-      Al facilitar su documento de identidad para el registro, usted declara haber sido informado y otorga su consentimiento para el tratamiento de sus datos bajo las condiciones antes descritas.
-    </Typography>
-  </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#333",
+                        display: "block",
+                        textAlign: "justify",
+                        mb: 1,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <strong>Análisis de Datos:</strong> El hotel podrá
+                      utilizar información transaccional anonimizada (fechas de
+                      estadía, procedencia) con fines estadísticos internos para
+                      mejorar la calidad del servicio. No se utilizarán sus
+                      datos de contacto para campañas de mercadeo sin su
+                      autorización expresa adicional.
+                    </Typography>
 
-  <FormControlLabel
-    control={
-      <Checkbox
-        name="aceptaPrivacidad"
-        checked={form.aceptaPrivacidad}
-        onChange={handleChange}
-        color="success"
-      />
-    }
-    label={
-      <Typography
-        variant="body2"
-        sx={{
-          fontWeight: "bold",
-          color: form.aceptaPrivacidad ? "#28a745" : "#dc3545",
-        }}
-      >
-        El cliente acepta los términos de privacidad *
-      </Typography>
-    }
-  />
-</Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#333",
+                        display: "block",
+                        textAlign: "justify",
+                        mb: 1.5,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <strong>Derechos del Titular:</strong> Usted tiene derecho
+                      a solicitar el acceso, rectificación, o cancelación de sus
+                      datos personales de nuestros registros en cualquier
+                      momento, dirigiéndose a la administración del hotel.
+                    </Typography>
+
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#000",
+                        display: "block",
+                        textAlign: "justify",
+                        lineHeight: 1.4,
+                        fontStyle: "italic",
+                        borderTop: "1px dashed #ccc",
+                        pt: 1,
+                      }}
+                    >
+                      Al facilitar su documento de identidad para el registro,
+                      usted declara haber sido informado y otorga su
+                      consentimiento para el tratamiento de sus datos bajo las
+                      condiciones antes descritas.
+                    </Typography>
+                  </Box>
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        name="aceptaPrivacidad"
+                        checked={form.aceptaPrivacidad}
+                        onChange={handleChange}
+                        color="success"
+                      />
+                    }
+                    label={
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: "bold",
+                          color: form.aceptaPrivacidad ? "#28a745" : "#dc3545",
+                        }}
+                      >
+                        El cliente acepta los términos de privacidad *
+                      </Typography>
+                    }
+                  />
+                </Box>
               </Box>
             </Box>
 

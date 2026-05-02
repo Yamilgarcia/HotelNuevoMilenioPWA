@@ -1,24 +1,36 @@
 import React from 'react';
 import './HabitacionCard.css';
-import BedIcon from '@mui/icons-material/Bed'; // Cama
-import ArrowCircleRightIcon from '@mui/icons-material/ArrowCircleRight'; // Flechita del footer
-import CleaningServicesIcon from '@mui/icons-material/CleaningServices'; // Icono para sucia
+import BedIcon from '@mui/icons-material/Bed';
+import ArrowCircleRightIcon from '@mui/icons-material/ArrowCircleRight';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import WarningIcon from '@mui/icons-material/Warning';
 
 export const HabitacionCard = ({ hab, onClick }) => {
   
-  // Definir clases y textos según estado
   let statusClass = 'room-free';
   let statusText = 'DISPONIBLE';
+  let IconoFooter = ArrowCircleRightIcon;
   
+  // Evaluamos si el tiempo se rebasó (Ajusta la validación según cómo venga de tu BD)
+  const isVencida = hab.estado === 'Vencida' || hab.tiempoRebasado === true;
+
   if (!hab.activo) {
     statusClass = 'room-inactive';
     statusText = 'INACTIVA';
+  } else if (isVencida) {
+    statusClass = 'room-overdue'; // NUEVO ESTADO: ROJO
+    statusText = 'RETRASADA';
+    IconoFooter = WarningIcon;
   } else if (hab.estado === 'Ocupada') {
-    statusClass = 'room-occupied';
-    statusText = 'OCUPADO';
+    statusClass = 'room-occupied'; // NARANJA
+    statusText = 'OCUPADA';
   } else if (hab.estado === 'Sucia') {
-    statusClass = 'room-dirty';
-    statusText = 'LIMPIEZA';
+    statusClass = 'room-dirty'; // AZUL CIELO
+    statusText = 'EN LIMPIEZA';
+    IconoFooter = CleaningServicesIcon;
+  } else if (hab.estado === 'Mantenimiento') {
+    statusClass = 'room-maintenance'; // GRIS
+    statusText = 'MANTENIMIENTO';
   }
 
   return (
@@ -35,16 +47,16 @@ export const HabitacionCard = ({ hab, onClick }) => {
           {hab.categoria || hab.tipo}
         </div>
         
-        {/* Mostramos precio pequeño si está libre */}
+        {/* Solo mostramos precio si está libre */}
         {hab.estado === 'Libre' && (
            <div className="room-price">C$ {hab.precio}</div>
         )}
       </div>
 
-      {/* Barra Inferior Oscura: Estado */}
+      {/* Barra Inferior: Estado */}
       <div className="room-footer">
         <span>{statusText}</span>
-        {hab.estado === 'Sucia' ? <CleaningServicesIcon fontSize="small"/> : <ArrowCircleRightIcon fontSize="small" />}
+        <IconoFooter fontSize="small" />
       </div>
     </div>
   );

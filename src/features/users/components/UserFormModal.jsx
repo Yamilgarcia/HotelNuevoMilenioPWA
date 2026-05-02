@@ -1,3 +1,4 @@
+import PersonIcon from "@mui/icons-material/Person";
 import { useEffect, useMemo, useState } from "react";
 import "./UserFormModal.css";
 
@@ -157,7 +158,9 @@ export default function UserFormModal({
         <form className="user-form-container" onSubmit={handleSubmit}>
           <div className="user-form-header">
             <div className="user-form-header__center">
+              {/* Le agregamos un icono estilizado al título */}
               <h2 id="user-modal-title" className="user-form-title">
+                <PersonIcon sx={{ color: "#38bdf8", fontSize: "1.8rem" }} />
                 {title}
               </h2>
             </div>

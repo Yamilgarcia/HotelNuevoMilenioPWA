@@ -1,49 +1,105 @@
 .habitacion-form-container {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(12px);
-    border-radius: 24px;
-    padding: 30px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    max-width: 500px;
-    margin: 10px auto;
+  /* Fondo oscuro unificado con los otros modales */
+  background: #1e293b;
+  border-radius: 20px;
+  padding: 32px 24px 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 500px;
+  margin: 0 auto;
+  color: white;
 }
 
 .form-title {
-    color: #0f172a;
-    font-weight: 800 !important;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 25px !important;
-    border-bottom: 3px solid #1e293b;
-    display: inline-block;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 25px !important;
+  /* Brillo inferior cian */
+  border-bottom: 2px solid rgba(56, 189, 248, 0.4); 
+  display: inline-block;
+  padding-bottom: 8px;
 }
 
-.input-field {
-    background-color: #f8fafc !important;
-    border-radius: 12px !important;
+/* Modificamos los TextField de Material-UI desde CSS globalmente para este form */
+.habitacion-form-container .MuiOutlinedInput-root {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  border-radius: 12px !important;
+  color: white !important;
+  transition: all 0.2s ease;
 }
 
+.habitacion-form-container .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.habitacion-form-container .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(56, 189, 248, 0.4) !important; /* Cian sutil al hover */
+}
+
+.habitacion-form-container .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #38bdf8 !important; /* Cian encendido al foco */
+  border-width: 2px;
+}
+
+.habitacion-form-container .MuiInputLabel-root {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.habitacion-form-container .MuiInputLabel-root.Mui-focused {
+  color: #38bdf8 !important;
+  font-weight: 600;
+}
+
+/* Fix para el menú de selección (Categorías) en modo oscuro */
+.habitacion-form-container .MuiSelect-icon {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Estilo para la caja de precio/amenidades */
+.price-display {
+  background: rgba(56, 189, 248, 0.05); /* Fondo cian translúcido */
+  padding: 16px;
+  border-radius: 12px;
+  text-align: center;
+  color: #e0f2fe; /* Texto blanco azulado */
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  margin-top: 15px;
+  margin-bottom: 20px;
+}
+
+.price-display hr {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.price-display h6 {
+  color: #38bdf8 !important;
+  font-weight: 800 !important;
+}
+
+/* Botón Principal */
 .submit-button {
-    background: #1e293b !important;
-    color: white !important;
-    padding: 14px !important;
-    font-size: 1rem !important;
-    border-radius: 14px !important;
-    margin-top: 15px !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  background: #38bdf8 !important; /* Color principal de acento */
+  color: #0f172a !important;      /* Texto oscuro para contraste */
+  padding: 14px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  margin-top: 25px !important;
+  text-transform: none !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
 }
 
 .submit-button:hover {
-    background: #334155 !important;
-    transform: translateY(-1px);
+  background: #0ea5e9 !important; /* Cian más oscuro */
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(56, 189, 248, 0.25) !important;
 }
 
-.price-display {
-    background: #e2e8f0;
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: bold;
-    color: #1e293b;
+/* Letras rojas de error adaptadas a modo oscuro */
+.habitacion-form-container .MuiFormHelperText-root.Mui-error {
+  color: #fca5a5 !important;
+  font-weight: 500;
 }
