@@ -78,7 +78,7 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
   // Función heurística por "Acorralamiento de Texto"
   const parseTextoCedula = (text) => {
     let resultado = {
-        cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: ''
+        cedula: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', lugarNacimiento: '', fechaNacimiento: ''
     };
 
     const textoPlano = text.replace(/\n/g, ' ').toUpperCase();
@@ -98,9 +98,31 @@ export default function CedulaScanner({ onScanSuccess, onClose }) {
         inicioBloqueNombres = textoPlano.indexOf(matchCedula[0]) + matchCedula[0].length;
     }
 
-    // 2. Acorralar la zona útil (Entre la cédula y la fecha de nacimiento)
+    // --- NUEVO: Extraer Fecha de Nacimiento ---
+    // Busca patrones tipo DD/MM/YYYY o DD-MM-YYYY. 
+    const regexFecha = /\b(\d{2})[-/ ]+(\d{2})[-/ ]+(\d{4})\b/;
+    const matchFecha = textoPlano.match(regexFecha);
+    if (matchFecha) {
+      // El input type="date" de HTML exige estrictamente el formato YYYY-MM-DD
+      // match[1] = DD, match[2] = MM, match[3] = YYYY
+      resultado.fechaNacimiento = `${matchFecha[3]}-${matchFecha[2]}-${matchFecha[1]}`;
+    }
+
+    // --- NUEVO: Extraer Lugar de Nacimiento ---
+    // Busca la palabra LUGAR, y captura las letras que le siguen hasta encontrar "FECHA" o números
+    const regexLugar = /LUGAR(?: DE NACIMIENTO)?\s*([^0-9]+?)(?:FECHA|\b\d{2}[-/])/;
+    const matchLugar = textoPlano.match(regexLugar);
+    if (matchLugar && matchLugar[1]) {
+      // Limpiamos palabras residuales que el OCR a veces arrastra
+      let lugar = matchLugar[1].replace(/DE NACIMIENTO|NACIMIENTO|FECHA/g, '').trim();
+      // Dejamos solo letras, espacios y comas
+      lugar = lugar.replace(/[^A-ZÑ\s.,]/g, '').trim().replace(/\s+/g, ' ');
+      resultado.lugarNacimiento = lugar;
+    }
+
+    // 2. Acorralar la zona útil de los nombres (Entre la cédula y lo demás)
     let zonaNombres = textoPlano.substring(inicioBloqueNombres);
-    const matchFin = zonaNombres.match(/FECHA|LUGAR|NACIMIENTO|\b\d{2}[-/]\d{2}[-/]\d{4}\b/);
+    const matchFin = zonaNombres.match(/FECHA|LUGAR|NACIMIENTO|\b\d{2}[-/ ]+\d{2}[-/ ]+\d{4}\b/);
     if (matchFin) {
         zonaNombres = zonaNombres.substring(0, matchFin.index);
     }

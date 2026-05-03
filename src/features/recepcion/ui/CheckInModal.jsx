@@ -37,6 +37,8 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   };
 
   const hoy = new Date();
+  
+  // Calculamos el día de mañana y fijamos la hora de salida a las 11:00 AM
   const manana = new Date(hoy);
   manana.setDate(hoy.getDate() + 1);
   manana.setHours(11, 0, 0, 0);
@@ -49,6 +51,8 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
     primerApellido: "",
     segundoApellido: "",
     telefono: "",
+    lugarNacimiento: "", // <-- NUEVO CAMPO
+    fechaNacimiento: "", // <-- NUEVO CAMPO
     personas: 1, // Por defecto inicia en 1
     fechaEntrada: formatDateTimeLocal(hoy),
     fechaSalida: formatDateTimeLocal(manana),
@@ -90,6 +94,8 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
     const f1 = new Date(form.fechaEntrada);
     const f2 = new Date(form.fechaSalida);
 
+    // TRUCO: Forzamos ambas fechas a la medianoche (00:00:00)
+    // Así el sistema ignora si entró a las 10am y salió a las 11am, solo cuenta los días
     f1.setHours(0, 0, 0, 0);
     f2.setHours(0, 0, 0, 0);
 
@@ -144,8 +150,9 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
       return;
     }
 
-    if (["primerNombre", "segundoNombre", "primerApellido", "segundoApellido"].includes(name)) {
-      const regexSoloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+    // Validación de letras extendida para incluir comas y puntos en el Lugar de Nacimiento
+    if (["primerNombre", "segundoNombre", "primerApellido", "segundoApellido", "lugarNacimiento"].includes(name)) {
+      const regexSoloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s,.-]*$/;
       if (!regexSoloLetras.test(value)) return;
     }
 
@@ -194,6 +201,8 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
         primerApellido: newValue.primer_apellido || "",
         segundoApellido: newValue.segundo_apellido || "",
         telefono: newValue.telefono || "",
+        lugarNacimiento: newValue.lugar_nacimiento || "", // <-- NUEVO
+        fechaNacimiento: newValue.fecha_nacimiento || "", // <-- NUEVO
       }));
       setErrorDocumento(false);
       setErrorTelefono(false);
@@ -211,6 +220,8 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
       primerApellido: "",
       segundoApellido: "",
       telefono: "",
+      lugarNacimiento: "", // <-- NUEVO
+      fechaNacimiento: "", // <-- NUEVO
     }));
     setErrorDocumento(false);
     setErrorTelefono(false);
@@ -225,6 +236,7 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
       segundoNombre: datosExtraidos.segundoNombre || prev.segundoNombre,
       primerApellido: datosExtraidos.primerApellido || prev.primerApellido,
       segundoApellido: datosExtraidos.segundoApellido || prev.segundoApellido,
+      fechaNacimiento: datosExtraidos.fechaNacimiento || prev.fechaNacimiento,
     }));
     setErrorDocumento(
       datosExtraidos.cedula ? !validarDocumento("Cédula", datosExtraidos.cedula) : false
@@ -257,48 +269,19 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
   if (!habitacion) return null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="xl"
-      fullWidth
-      PaperProps={{
-        className: "modal-fondo",
-        sx: { margin: { xs: 1, md: 4 } },
-      }}
-    >
-      <DialogTitle
-        sx={{
-          bgcolor: "#1e2b3c",
-          color: "white",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          py: 2,
-          px: { xs: 2, sm: 3 },
-        }}
-      >
+    <Dialog open={open} onClose={handleClose} maxWidth="xl" fullWidth PaperProps={{ className: "modal-fondo", sx: { margin: { xs: 1, md: 4 } } }}>
+      <DialogTitle sx={{ bgcolor: "#1e2b3c", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", py: 2, px: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <BedIcon fontSize="large" />
-          <Typography variant="h6" fontWeight="bold">
-            Procesar Habitación
-          </Typography>
+          <Typography variant="h6" fontWeight="bold">Procesar Habitación</Typography>
         </Box>
-        <IconButton onClick={handleClose} sx={{ color: "white" }}>
-          <CloseIcon fontSize="medium" />
-        </IconButton>
+        <IconButton onClick={handleClose} sx={{ color: "white" }}><CloseIcon fontSize="medium" /></IconButton>
       </DialogTitle>
 
       <DialogContent sx={{ p: { xs: 1.5, sm: 3, md: 4 } }}>
         <Box className="panel-seccion" sx={{ mb: { xs: 2, md: 4 }, display: "block" }}>
           <Typography className="titulo-seccion">Datos de la habitación</Typography>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)", md: "repeat(6, 1fr)" },
-              gap: 2,
-            }}
-          >
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)", md: "repeat(6, 1fr)" }, gap: 2 }}>
             <Box>
               <Typography className="info-label">Nombre/Nro</Typography>
               <Typography className="info-value">{habitacion.numero}</Typography>
@@ -309,24 +292,17 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
             </Box>
             <Box>
               <Typography className="info-label">Tipo</Typography>
-              <Typography className="info-value" sx={{ textTransform: "uppercase" }}>
-                {habitacion.categoria}
-              </Typography>
+              <Typography className="info-value" sx={{ textTransform: "uppercase" }}>{habitacion.categoria}</Typography>
             </Box>
             <Box sx={{ gridColumn: { xs: "span 2", md: "span 2" } }}>
               <Typography className="info-label">Detalles / Amenidades</Typography>
-              <Typography
-                className="info-value"
-                sx={{ textTransform: "uppercase", fontSize: { xs: "0.85rem", sm: "1.05rem" } }}
-              >
+              <Typography className="info-value" sx={{ textTransform: "uppercase", fontSize: { xs: "0.85rem", sm: "1.05rem" } }}>
                 {habitacion.amenidades || "SIN ESPECIFICAR"}
               </Typography>
             </Box>
             <Box>
               <Typography className="info-label">Precio Base</Typography>
-              <Typography className="info-value" fontWeight="bold">
-                C$ {tarifaBaseCalculada}
-              </Typography>
+              <Typography className="info-value" fontWeight="bold">C$ {tarifaBaseCalculada}</Typography>
             </Box>
           </Box>
         </Box>
@@ -349,9 +325,7 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                   value={buscadorValue}
                   getOptionLabel={(option) => (option ? `${option.cedula} - ${option.nombre_completo}` : "")}
                   onChange={handleClientSelect}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Buscar cliente existente..." InputLabelProps={{ shrink: true }} />
-                  )}
+                  renderInput={(params) => <TextField {...params} label="Buscar cliente existente..." InputLabelProps={{ shrink: true }} />}
                 />
                 <Tooltip title="Escanear Cédula">
                   <Button variant="contained" sx={{ bgcolor: "#2c3e50" }} onClick={() => setShowScanner(true)}>
@@ -377,15 +351,19 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                 <TextField label="Primer Apellido *" name="primerApellido" value={form.primerApellido} onChange={handleChange} required fullWidth InputLabelProps={{ shrink: true }} />
                 <TextField label="Segundo Apellido" name="segundoApellido" value={form.segundoApellido} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }} />
 
+                {/* --- NUEVOS CAMPOS --- */}
+                <TextField label="Lugar de Nacimiento" name="lugarNacimiento" value={form.lugarNacimiento} onChange={handleChange} placeholder="Ej. Managua" fullWidth InputLabelProps={{ shrink: true }} />
+                <TextField label="Fecha de Nacimiento" name="fechaNacimiento" type="date" value={form.fechaNacimiento} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }} />
+
                 <Box sx={{ gridColumn: { xs: "span 1", sm: "span 2" } }}>
                   <TextField label="Teléfono / Celular (Opcional)" name="telefono" value={form.telefono} onChange={handleChange} error={!!errorTelefono} helperText={errorTelefono} placeholder="Ej: 0000-0000" fullWidth InputLabelProps={{ shrink: true }} />
                 </Box>
 
-                <Box sx={{ mt: 3, p: 2, bgcolor: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: 1 }}>
+                {/* DECLARACIÓN LEGAL */}
+                <Box sx={{ gridColumn: { xs: "span 1", sm: "span 2" }, mt: 2, p: 2, bgcolor: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: 1 }}>
                   <Typography variant="caption" sx={{ fontWeight: "bold", color: "#2c3e50", display: "block", mb: 1 }}>
                     DECLARACIÓN DE PRIVACIDAD Y CONSENTIMIENTO INFORMADO
                   </Typography>
-
                   <Box sx={{ height: "180px", overflowY: "auto", bgcolor: "#ffffff", border: "1px solid #ced4da", borderRadius: 1, p: 1.5, mb: 1.5 }}>
                     <Typography variant="caption" sx={{ color: "#333", display: "block", textAlign: "justify", mb: 1, lineHeight: 1.4 }}>
                       En cumplimiento con la Ley N.º 787, Ley de Protección de Datos Personales de la República de Nicaragua, y en concordancia con las mejores prácticas internacionales de privacidad (GDPR), el Hotel Nuevo Milenio le informa lo siguiente:
@@ -406,7 +384,6 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                       Al facilitar su documento de identidad para el registro, usted declara haber sido informado y otorga su consentimiento para el tratamiento de sus datos bajo las condiciones antes descritas.
                     </Typography>
                   </Box>
-
                   <FormControlLabel control={<Checkbox name="aceptaPrivacidad" checked={form.aceptaPrivacidad} onChange={handleChange} color="success" />} label={<Typography variant="body2" sx={{ fontWeight: "bold", color: form.aceptaPrivacidad ? "#28a745" : "#dc3545" }}>El cliente acepta los términos de privacidad *</Typography>} />
                 </Box>
               </Box>
@@ -419,20 +396,10 @@ export default function CheckInModal({ open, onClose, habitacion, onConfirm }) {
                 <TextField label="Fecha y hora de entrada" name="fechaEntrada" type="datetime-local" value={form.fechaEntrada} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }} />
                 <TextField label="Fecha y hora de salida" name="fechaSalida" type="datetime-local" value={form.fechaSalida} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }} />
                 
-                {/* 3. DIBUJAMOS LAS OPCIONES BASADAS EN EL LÍMITE */}
-                <TextField
-                  select
-                  label="Cant. Personas"
-                  name="personas"
-                  value={form.personas}
-                  onChange={handleChange}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                >
+                {/* DIBUJAMOS LAS OPCIONES BASADAS EN EL LÍMITE */}
+                <TextField select label="Cant. Personas" name="personas" value={form.personas} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }}>
                   {Array.from({ length: maxPersonas }, (_, i) => i + 1).map((n) => (
-                    <MenuItem key={n} value={n}>
-                      {n} Persona(s)
-                    </MenuItem>
+                    <MenuItem key={n} value={n}>{n} Persona(s)</MenuItem>
                   ))}
                 </TextField>
 

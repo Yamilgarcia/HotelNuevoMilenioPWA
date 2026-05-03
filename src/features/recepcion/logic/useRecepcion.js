@@ -1,6 +1,5 @@
 import { supabase } from "../../../supabase.config"; 
 import { useNavigate } from "react-router-dom";
-// Ajusta la ruta dependiendo de dónde guardaste syncManager.js
 import { addToSyncQueue } from "../../../utils/syncManager"; 
 
 export const useRecepcion = () => {
@@ -18,15 +17,13 @@ export const useRecepcion = () => {
     }
 
     try {
-      // --- PASO 0: OBTENER EL USUARIO QUE ESTÁ LOGUEADO (La Recepcionista) ---
-      // Obtenemos el ID del usuario actual de la sesión de Supabase
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
-      const recepcionistaId = session?.user?.id; // Si no hay sesión, será undefined
+      const recepcionistaId = session?.user?.id; 
 
-      // --- PASO 1: GUARDAR O ACTUALIZAR EL CLIENTE ---
       const cedulaLimpia = datosFormulario.cedula.trim().toUpperCase();
       
+      // --- AÑADIMOS LUGAR Y FECHA DE NACIMIENTO AL PAYLOAD ---
       const datosCliente = {
         cedula: cedulaLimpia,
         primer_nombre: datosFormulario.primerNombre.trim(),
@@ -35,6 +32,8 @@ export const useRecepcion = () => {
         segundo_apellido: datosFormulario.segundoApellido.trim(),
         nombre_completo: `${datosFormulario.primerNombre} ${datosFormulario.primerApellido}`,
         telefono: datosFormulario.telefono || null,
+        lugar_nacimiento: datosFormulario.lugarNacimiento || null, // <-- NUEVO
+        fecha_nacimiento: datosFormulario.fechaNacimiento || null, // <-- NUEVO
         ultima_visita: new Date().toISOString(),
         acepta_privacidad: datosFormulario.aceptaPrivacidad,
         fecha_aceptacion_privacidad: datosFormulario.aceptaPrivacidad ? new Date().toISOString() : null
@@ -43,12 +42,11 @@ export const useRecepcion = () => {
       const { error: clienteError } = await supabase.from('clientes').upsert(datosCliente);
       if (clienteError) throw clienteError;
 
-      // --- PASO 2: ACTUALIZAR LA HABITACIÓN COMO "OCUPADA" ---
       const huespedInfo = {
         cedula: cedulaLimpia,
         nombre: datosCliente.nombre_completo,
         personas: Number(datosFormulario.personas),
-        fechaEntrada: datosFormulario.fechaEntrada, // Usamos la fecha del formulario, no la de 'now'
+        fechaEntrada: datosFormulario.fechaEntrada,
         fechaSalida: datosFormulario.fechaSalida,
         precioPactado: Number(precioCobrado),
         estadoPago: "PAGADO", 
@@ -63,7 +61,6 @@ export const useRecepcion = () => {
 
       if (habError) throw habError;
 
-      // --- PASO 3: CREAR EL REGISTRO HISTÓRICO (La novedad) ---
       const { error: historialError } = await supabase.from('historial_hospedajes').insert([{
          cliente_cedula: cedulaLimpia,
          habitacion_id: habitacionId,
@@ -72,13 +69,11 @@ export const useRecepcion = () => {
          personas: Number(datosFormulario.personas),
          total_pagar: Number(precioCobrado),
          estado_pago: "PAGADO",
-         recepcionista_id: recepcionistaId // ¡Aquí queda grabada la huella de quién lo hizo!
+         recepcionista_id: recepcionistaId 
       }]);
 
       if (historialError) {
           console.error("Error guardando el historial:", historialError);
-          // Opcional: No lanzamos el error para no asustar al usuario si la reserva sí se hizo,
-          // pero puedes agregar un alert aquí si lo consideras crítico.
       }
 
     } catch (error) {
@@ -100,10 +95,8 @@ export const useRecepcion = () => {
   };
 
   // ==========================================
-  // 2. CHECK-OUT: Libera y marca como SUCIA
-  // ==========================================
+  // 2. CHECK-OUT
   const realizarCheckOut = async (habitacionId) => {
-    
     if (!navigator.onLine) {
        addToSyncQueue('CHECK_OUT', { habitacionId });
        alert("Estás offline 📶. El Check-out se guardó localmente.");
@@ -134,19 +127,14 @@ export const useRecepcion = () => {
   };
 
   // ==========================================
-  // 3. CAMBIAR ESTADO (Limpieza, Mantenimiento)
-  // ==========================================
-  // 3. CAMBIAR ESTADO (Limpieza, Mantenimiento, etc)
+  // 3. CAMBIAR ESTADO
   const cambiarEstado = async (habitacionId, nuevoEstado) => {
-    
-    // 1. SI ESTAMOS OFFLINE: Guardamos en la cola y terminamos
     if (!navigator.onLine) {
       addToSyncQueue('CAMBIAR_ESTADO', { habitacionId, nuevoEstado });
       alert(`Estás offline 📶. El estado a "${nuevoEstado}" se guardó localmente y se sincronizará al recuperar conexión.`);
       return { offlineDataSaved: true };
     }
 
-    // 2. SI ESTAMOS ONLINE: Intentamos la operación real
     try {
       const { error } = await supabase
         .from('habitaciones')
@@ -157,21 +145,16 @@ export const useRecepcion = () => {
         .eq('id', habitacionId);
 
       if (error) throw error;
-      
-      // Opcional: Si quieres un feedback visual al cambiar estado online
-      console.log(`Estado cambiado a ${nuevoEstado} exitosamente.`);
 
     } catch (error) {
       console.error("Error cambiando estado:", error);
 
-      // 3. SI FALLÓ POR RED (INTERNET SE CAYÓ JUSTO EN EL MOMENTO)
       if (error.offline || error.message === 'Failed to fetch' || error.status === 503) {
          addToSyncQueue('CAMBIAR_ESTADO', { habitacionId, nuevoEstado });
          alert(`Conexión fallida 📶. El cambio a "${nuevoEstado}" se guardó localmente para sincronizar luego.`);
          return { offlineDataSaved: true };
       }
-      
-      throw error; // Si es un error de otra naturaleza, lo lanzamos
+      throw error; 
     }
   };
 
