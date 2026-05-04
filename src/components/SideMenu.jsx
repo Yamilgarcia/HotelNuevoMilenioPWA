@@ -20,9 +20,11 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
+import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
+import AssessmentIcon from '@mui/icons-material/Assessment'; // <-- Icono para el menú principal de Reportes
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/logic/AuthProvider";
-
+import InsertChartIcon from '@mui/icons-material/InsertChart';
 const drawerWidth = 280;
 
 export default function SideMenu({ open, onClose }) {
@@ -30,12 +32,13 @@ export default function SideMenu({ open, onClose }) {
   const navigate = useNavigate();
   const { profile, role, signOut } = useAuth();
   
-  // Estado para controlar si el menú de configuración está abierto o cerrado
+  // Estados para controlar los menús desplegables
   const [openSettings, setOpenSettings] = useState(false);
+  const [openReportes, setOpenReportes] = useState(false); // <-- Nuevo estado para Reportes
 
   const currentRole = (role || profile?.role || "").toLowerCase();
 
-  // Quitamos "Registrar Habitación" del menú principal
+  // Menú principal (solo los enlaces directos)
   const menuItems = [
     {
       text: "Panel de Control",
@@ -63,6 +66,10 @@ export default function SideMenu({ open, onClose }) {
 
   const handleSettingsClick = () => {
     setOpenSettings(!openSettings);
+  };
+
+  const handleReportesClick = () => {
+    setOpenReportes(!openReportes);
   };
 
   const roleLabel =
@@ -126,6 +133,7 @@ export default function SideMenu({ open, onClose }) {
         <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)", mb: 1 }} />
 
         <List sx={{ px: 2 }}>
+          {/* 1. MAPEO DE ITEMS NORMALES */}
           {visibleItems.map((item) => {
             const selected =
               item.path === "/"
@@ -167,8 +175,88 @@ export default function SideMenu({ open, onClose }) {
               </ListItem>
             );
           })}
+
+          {/* 2. MENÚ DESPLEGABLE DE REPORTES (Solo Administrador) */}
+          {currentRole === "administrador" && (
+            <>
+              <ListItemButton
+                onClick={handleReportesClick}
+                sx={{
+                  borderRadius: "12px",
+                  mb: openReportes ? 0.5 : 0.5,
+                  color: "white",
+                  "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)" },
+                }}
+              >
+                <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
+                  <AssessmentIcon />
+                </ListItemIcon>
+                <ListItemText 
+                  primary="Reportes" 
+                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 600 }} 
+                />
+                {openReportes ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+
+              <Collapse in={openReportes} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                  
+                  {/* Sub-item: Clientes Fieles */}
+                  <ListItemButton
+                    component={Link}
+                    to="/Recepcion/ReporteClientesFieles"
+                    onClick={onClose}
+                    selected={location.pathname === "/Recepcion/ReporteClientesFieles"}
+                    sx={{
+                      borderRadius: "12px",
+                      pl: 4, // Sangría
+                      mb: 1,
+                      bgcolor: location.pathname === "/Recepcion/ReporteClientesFieles"
+                        ? "rgba(56, 189, 248, 0.16)"
+                        : "transparent",
+                      "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
+                      <WorkspacePremiumIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Clientes Fieles" 
+                      primaryTypographyProps={{ fontSize: "0.9rem" }} 
+                    />
+                  </ListItemButton>
+
+                  <ListItemButton
+                    component={Link}
+                    to="/Recepcion/ReporteTemporadasAltas"
+                    onClick={onClose}
+                    selected={location.pathname === "/Recepcion/ReporteTemporadasAltas"}
+                    sx={{
+                      borderRadius: "12px",
+                      pl: 4, // Sangría para que se note que es submenú
+                      mb: 1,
+                      bgcolor: location.pathname === "/Recepcion/ReporteTemporadasAltas"
+                        ? "rgba(56, 189, 248, 0.16)"
+                        : "transparent",
+                      "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
+                      <InsertChartIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Temporadas Altas" 
+                      primaryTypographyProps={{ fontSize: "0.9rem" }} 
+                    />
+                  </ListItemButton>
+
+                </List>
+              </Collapse>
+            </>
+          )}
         </List>
 
+        {/* PARTE INFERIOR: CONFIGURACIÓN Y SALIR */}
         <Box sx={{ mt: "auto", p: 2 }}>
           <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)", mb: 2 }} />
 
@@ -200,7 +288,7 @@ export default function SideMenu({ open, onClose }) {
                     selected={location.pathname === "/configuracion/habitaciones"}
                     sx={{
                       borderRadius: "12px",
-                      pl: 4, // Sangría para que se note que es un submenú
+                      pl: 4, 
                       mb: 1,
                       bgcolor: location.pathname === "/configuracion/habitaciones"
                         ? "rgba(56, 189, 248, 0.16)"

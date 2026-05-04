@@ -5,10 +5,11 @@ import HabitacionesAdmin from "./pages/HabitacionesAdmin"; // <-- Importa la nue
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./features/pages/LoginPage";
 import UsersAdminPage from "./features/users/pages/UsersAdminPage";
-
+import ReporteClientesFieles from "./features/Reportes/ui/ReporteClientesFieles";
 import { AuthProvider } from "./features/auth/logic/AuthProvider";
 import ProtectedRoute from "./features/routes/ProtectedRoute";
 import RoleRoute from "./features/routes/RoleRoute";
+import ReporteTemporadasAltas from "./features/Reportes/ui/ReporteTemporadasAltas";
 
 function NoAutorizadoPage() {
   return (
@@ -39,9 +40,6 @@ export default function App() {
               }
             >
               <Route path="/" element={<DashboardPage />} />
-
-
-              
             </Route>
 
             {/* Solo administrador */}
@@ -63,6 +61,15 @@ export default function App() {
                 element={<HabitacionPage />}
               />
 
+              <Route
+                path="/Recepcion/ReporteClientesFieles"
+                element={<ReporteClientesFieles />}
+              />
+
+              <Route
+                path="/Recepcion/ReporteTemporadasAltas"
+                element={<ReporteTemporadasAltas />}
+              />
               <Route path="/usuarios" element={<UsersAdminPage />} />
             </Route>
           </Route>
