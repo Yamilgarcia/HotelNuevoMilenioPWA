@@ -70,10 +70,12 @@ export default function AppLayout() {
         <Box
           component="main"
           sx={{
-            p: { xs: 0, md: 0 }, // Le quité el padding base para que los reportes tomen control total de sus márgenes
+            // Le regresamos un margen (p: 1 en celulares) para que actúe como muro de contención
+            p: { xs: 1, md: 4 }, 
             flexGrow: 1,
-            display: "flex",
-            flexDirection: "column"
+            // Limitamos su ancho al 100% para que la tabla no lo empuje
+            width: "100%",
+            boxSizing: "border-box"
           }}
         >
           <Outlet />
