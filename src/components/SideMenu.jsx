@@ -13,6 +13,7 @@ import {
   Chip,
   Collapse,
 } from "@mui/material";
+
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import AppRegistrationIcon from "@mui/icons-material/AppRegistration";
 import GroupIcon from "@mui/icons-material/Group";
@@ -20,25 +21,27 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
-import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
-import AssessmentIcon from '@mui/icons-material/Assessment'; // <-- Icono para el menú principal de Reportes
+import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import InsertChartIcon from "@mui/icons-material/InsertChart";
+import ManageSearchIcon from "@mui/icons-material/ManageSearch";
+
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/logic/AuthProvider";
-import InsertChartIcon from '@mui/icons-material/InsertChart';
+import { logAuditEvent } from "../utils/auditClient";
+
 const drawerWidth = 280;
 
 export default function SideMenu({ open, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, role, signOut } = useAuth();
-  
-  // Estados para controlar los menús desplegables
+
   const [openSettings, setOpenSettings] = useState(false);
-  const [openReportes, setOpenReportes] = useState(false); // <-- Nuevo estado para Reportes
+  const [openReportes, setOpenReportes] = useState(false);
 
   const currentRole = (role || profile?.role || "").toLowerCase();
 
-  // Menú principal (solo los enlaces directos)
   const menuItems = [
     {
       text: "Panel de Control",
@@ -52,6 +55,12 @@ export default function SideMenu({ open, onClose }) {
       path: "/usuarios",
       roles: ["administrador"],
     },
+    {
+      text: "Auditoría",
+      icon: <ManageSearchIcon />,
+      path: "/auditoria",
+      roles: ["administrador"],
+    },
   ];
 
   const visibleItems = menuItems.filter((item) =>
@@ -59,17 +68,30 @@ export default function SideMenu({ open, onClose }) {
   );
 
   async function handleLogout() {
+    await logAuditEvent({
+      action: "LOGOUT",
+      entityTable: "profiles",
+      entityId: profile?.id || profile?.email || null,
+      metadata: {
+        modulo: "auth",
+        descripcion: "Usuario cerró sesión",
+        email: profile?.email || null,
+        nombre: profile?.nombre || null,
+        role: currentRole || null,
+      },
+    });
+
     await signOut();
     onClose?.();
     navigate("/login", { replace: true });
   }
 
   const handleSettingsClick = () => {
-    setOpenSettings(!openSettings);
+    setOpenSettings((prev) => !prev);
   };
 
   const handleReportesClick = () => {
-    setOpenReportes(!openReportes);
+    setOpenReportes((prev) => !prev);
   };
 
   const roleLabel =
@@ -133,7 +155,6 @@ export default function SideMenu({ open, onClose }) {
         <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)", mb: 1 }} />
 
         <List sx={{ px: 2 }}>
-          {/* 1. MAPEO DE ITEMS NORMALES */}
           {visibleItems.map((item) => {
             const selected =
               item.path === "/"
@@ -164,6 +185,7 @@ export default function SideMenu({ open, onClose }) {
                   <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
                     {item.icon}
                   </ListItemIcon>
+
                   <ListItemText
                     primary={item.text}
                     primaryTypographyProps={{
@@ -176,7 +198,6 @@ export default function SideMenu({ open, onClose }) {
             );
           })}
 
-          {/* 2. MENÚ DESPLEGABLE DE REPORTES (Solo Administrador) */}
           {currentRole === "administrador" && (
             <>
               <ListItemButton
@@ -191,38 +212,45 @@ export default function SideMenu({ open, onClose }) {
                 <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
                   <AssessmentIcon />
                 </ListItemIcon>
-                <ListItemText 
-                  primary="Reportes" 
-                  primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 600 }} 
+
+                <ListItemText
+                  primary="Reportes"
+                  primaryTypographyProps={{
+                    fontSize: "0.95rem",
+                    fontWeight: 600,
+                  }}
                 />
+
                 {openReportes ? <ExpandLess /> : <ExpandMore />}
               </ListItemButton>
 
               <Collapse in={openReportes} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  
-                  {/* Sub-item: Clientes Fieles */}
                   <ListItemButton
                     component={Link}
                     to="/Recepcion/ReporteClientesFieles"
                     onClick={onClose}
-                    selected={location.pathname === "/Recepcion/ReporteClientesFieles"}
+                    selected={
+                      location.pathname === "/Recepcion/ReporteClientesFieles"
+                    }
                     sx={{
                       borderRadius: "12px",
-                      pl: 4, // Sangría
+                      pl: 4,
                       mb: 1,
-                      bgcolor: location.pathname === "/Recepcion/ReporteClientesFieles"
-                        ? "rgba(56, 189, 248, 0.16)"
-                        : "transparent",
+                      bgcolor:
+                        location.pathname === "/Recepcion/ReporteClientesFieles"
+                          ? "rgba(56, 189, 248, 0.16)"
+                          : "transparent",
                       "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
                     }}
                   >
                     <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
                       <WorkspacePremiumIcon fontSize="small" />
                     </ListItemIcon>
-                    <ListItemText 
-                      primary="Clientes Fieles" 
-                      primaryTypographyProps={{ fontSize: "0.9rem" }} 
+
+                    <ListItemText
+                      primary="Clientes Fieles"
+                      primaryTypographyProps={{ fontSize: "0.9rem" }}
                     />
                   </ListItemButton>
 
@@ -230,37 +258,39 @@ export default function SideMenu({ open, onClose }) {
                     component={Link}
                     to="/Recepcion/ReporteTemporadasAltas"
                     onClick={onClose}
-                    selected={location.pathname === "/Recepcion/ReporteTemporadasAltas"}
+                    selected={
+                      location.pathname === "/Recepcion/ReporteTemporadasAltas"
+                    }
                     sx={{
                       borderRadius: "12px",
-                      pl: 4, // Sangría para que se note que es submenú
+                      pl: 4,
                       mb: 1,
-                      bgcolor: location.pathname === "/Recepcion/ReporteTemporadasAltas"
-                        ? "rgba(56, 189, 248, 0.16)"
-                        : "transparent",
+                      bgcolor:
+                        location.pathname ===
+                        "/Recepcion/ReporteTemporadasAltas"
+                          ? "rgba(56, 189, 248, 0.16)"
+                          : "transparent",
                       "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
                     }}
                   >
                     <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
                       <InsertChartIcon fontSize="small" />
                     </ListItemIcon>
-                    <ListItemText 
-                      primary="Temporadas Altas" 
-                      primaryTypographyProps={{ fontSize: "0.9rem" }} 
+
+                    <ListItemText
+                      primary="Temporadas Altas"
+                      primaryTypographyProps={{ fontSize: "0.9rem" }}
                     />
                   </ListItemButton>
-
                 </List>
               </Collapse>
             </>
           )}
         </List>
 
-        {/* PARTE INFERIOR: CONFIGURACIÓN Y SALIR */}
         <Box sx={{ mt: "auto", p: 2 }}>
           <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)", mb: 2 }} />
 
-          {/* MENÚ DE CONFIGURACIÓN (Solo Administrador) */}
           {currentRole === "administrador" && (
             <>
               <ListItemButton
@@ -275,7 +305,9 @@ export default function SideMenu({ open, onClose }) {
                 <ListItemIcon sx={{ color: "white", opacity: 0.7 }}>
                   <SettingsIcon />
                 </ListItemIcon>
+
                 <ListItemText primary="Configuración" />
+
                 {openSettings ? <ExpandLess /> : <ExpandMore />}
               </ListItemButton>
 
@@ -285,23 +317,27 @@ export default function SideMenu({ open, onClose }) {
                     component={Link}
                     to="/configuracion/habitaciones"
                     onClick={onClose}
-                    selected={location.pathname === "/configuracion/habitaciones"}
+                    selected={
+                      location.pathname === "/configuracion/habitaciones"
+                    }
                     sx={{
                       borderRadius: "12px",
-                      pl: 4, 
+                      pl: 4,
                       mb: 1,
-                      bgcolor: location.pathname === "/configuracion/habitaciones"
-                        ? "rgba(56, 189, 248, 0.16)"
-                        : "transparent",
+                      bgcolor:
+                        location.pathname === "/configuracion/habitaciones"
+                          ? "rgba(56, 189, 248, 0.16)"
+                          : "transparent",
                       "&:hover": { bgcolor: "rgba(56, 189, 248, 0.1)" },
                     }}
                   >
                     <ListItemIcon sx={{ color: "#38bdf8", minWidth: 45 }}>
                       <AppRegistrationIcon fontSize="small" />
                     </ListItemIcon>
-                    <ListItemText 
-                      primary="Panel Habitaciones" 
-                      primaryTypographyProps={{ fontSize: "0.9rem" }} 
+
+                    <ListItemText
+                      primary="Panel Habitaciones"
+                      primaryTypographyProps={{ fontSize: "0.9rem" }}
                     />
                   </ListItemButton>
                 </List>
@@ -320,6 +356,7 @@ export default function SideMenu({ open, onClose }) {
             <ListItemIcon sx={{ color: "#f87171" }}>
               <LogoutIcon />
             </ListItemIcon>
+
             <ListItemText primary="Cerrar sesión" />
           </ListItemButton>
         </Box>

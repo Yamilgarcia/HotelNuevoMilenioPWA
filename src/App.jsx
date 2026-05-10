@@ -1,15 +1,17 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import HabitacionPage from "./pages/HabitacionPage";
-import HabitacionesAdmin from "./pages/HabitacionesAdmin"; // <-- Importa la nueva tabla
+import HabitacionesAdmin from "./pages/HabitacionesAdmin";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./features/pages/LoginPage";
 import UsersAdminPage from "./features/users/pages/UsersAdminPage";
 import ReporteClientesFieles from "./features/Reportes/ui/ReporteClientesFieles";
+import ReporteTemporadasAltas from "./features/Reportes/ui/ReporteTemporadasAltas";
+import AuditLogsPage from "./features/audit/pages/AuditLogsPage";
+
 import { AuthProvider } from "./features/auth/logic/AuthProvider";
 import ProtectedRoute from "./features/routes/ProtectedRoute";
 import RoleRoute from "./features/routes/RoleRoute";
-import ReporteTemporadasAltas from "./features/Reportes/ui/ReporteTemporadasAltas";
 
 function NoAutorizadoPage() {
   return (
@@ -44,8 +46,6 @@ export default function App() {
 
             {/* Solo administrador */}
             <Route element={<RoleRoute allowedRoles={["administrador"]} />}>
-              {/* Ruta actualizada para reflejar que está dentro de configuración */}
-
               <Route
                 path="/configuracion/habitaciones"
                 element={<HabitacionesAdmin />}
@@ -70,7 +70,10 @@ export default function App() {
                 path="/Recepcion/ReporteTemporadasAltas"
                 element={<ReporteTemporadasAltas />}
               />
+
               <Route path="/usuarios" element={<UsersAdminPage />} />
+
+              <Route path="/auditoria" element={<AuditLogsPage />} />
             </Route>
           </Route>
         </Route>
