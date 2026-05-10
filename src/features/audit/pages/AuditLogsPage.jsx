@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -120,13 +117,6 @@ function formatDisplayValue(value) {
   return String(value);
 }
 
-function formatJsonValue(value) {
-  if (value === null || value === undefined) return "Vacío";
-  if (typeof value === "boolean") return value ? "Sí" : "No";
-  if (typeof value === "object") return JSON.stringify(value, null, 2);
-  return String(value);
-}
-
 function getActionLabel(action) {
   const labels = {
     INSERT: "Creación",
@@ -150,16 +140,6 @@ function getTableLabel(tableName) {
   };
 
   return labels[tableName] || tableName || "—";
-}
-
-function getSourceLabel(source) {
-  const labels = {
-    db_trigger: "Base de datos",
-    app_rpc: "Aplicación",
-    system: "Sistema",
-  };
-
-  return labels[source] || source || "—";
 }
 
 function getActionClass(action) {
@@ -189,10 +169,6 @@ function getVisibleChangedEntries(changedFields) {
 
     return JSON.stringify(oldValue) !== JSON.stringify(newValue);
   });
-}
-
-function getChangedFieldsCount(changedFields) {
-  return getVisibleChangedEntries(changedFields).length;
 }
 
 function getLogData(log) {
@@ -272,17 +248,6 @@ function getChangeSummary(log) {
   return `${summary} +${entries.length - 1} más`;
 }
 
-function JsonBlock({ title, data }) {
-  if (!data) return null;
-
-  return (
-    <div className="audit-json-block">
-      <Typography className="audit-json-title">{title}</Typography>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
-    </div>
-  );
-}
-
 function ChangedFields({ log }) {
   const entries = getVisibleChangedEntries(log?.changed_fields);
 
@@ -290,8 +255,7 @@ function ChangedFields({ log }) {
     if (log?.action === "INSERT") {
       return (
         <Typography className="audit-empty-text">
-          Se creó un nuevo registro. Los datos completos quedan disponibles en
-          el detalle técnico.
+          Se creó un nuevo registro.
         </Typography>
       );
     }
@@ -299,8 +263,7 @@ function ChangedFields({ log }) {
     if (log?.action === "DELETE") {
       return (
         <Typography className="audit-empty-text">
-          Se eliminó un registro. La información anterior queda disponible en el
-          detalle técnico.
+          Se eliminó un registro.
         </Typography>
       );
     }
@@ -726,54 +689,6 @@ export default function AuditLogsPage() {
 
                 <ChangedFields log={selectedLog} />
               </Box>
-
-              <Divider />
-
-              <Accordion className="audit-technical-accordion" elevation={0}>
-                <AccordionSummary expandIcon={<span>▼</span>}>
-                  <Box>
-                    <Typography className="audit-section-title">
-                      Ver detalle técnico
-                    </Typography>
-                    <Typography className="audit-empty-text">
-                      Información avanzada para soporte o revisión interna.
-                    </Typography>
-                  </Box>
-                </AccordionSummary>
-
-                <AccordionDetails>
-                  <Stack spacing={2}>
-                    <div className="audit-detail-grid">
-                      <div>
-                        <span>ID del registro</span>
-                        <p>{selectedLog.entity_id || "—"}</p>
-                      </div>
-
-                      <div>
-                        <span>Origen</span>
-                        <p>{getSourceLabel(selectedLog.source)}</p>
-                      </div>
-
-                      <div>
-                        <span>Tabla interna</span>
-                        <p>{selectedLog.entity_table || "—"}</p>
-                      </div>
-
-                      <div>
-                        <span>ID del usuario</span>
-                        <p>{selectedLog.actor_id || "—"}</p>
-                      </div>
-                    </div>
-
-                    <JsonBlock title="Metadata" data={selectedLog.metadata} />
-
-                    <div className="audit-json-grid">
-                      <JsonBlock title="Antes" data={selectedLog.old_data} />
-                      <JsonBlock title="Después" data={selectedLog.new_data} />
-                    </div>
-                  </Stack>
-                </AccordionDetails>
-              </Accordion>
             </Stack>
           )}
         </DialogContent>
