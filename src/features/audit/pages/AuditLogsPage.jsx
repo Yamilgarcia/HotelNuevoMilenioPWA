@@ -110,8 +110,20 @@ function formatDisplayValue(value) {
     return value.length ? value.join(", ") : "Vacío";
   }
 
+  // AQUÍ ESTÁ LA MAGIA: Si el valor es un objeto (como el del huésped)
   if (typeof value === "object") {
-    return JSON.stringify(value, null, 2);
+    // Si detectamos que es el objeto del huésped (porque tiene cédula o nombre)
+    if (value.cedula || value.nombre) {
+      return `👤 Huésped: ${value.nombre || 'Sin nombre'}
+🆔 Cédula: ${value.cedula || 'N/A'}
+👥 Personas: ${value.personas || 1}
+💰 Pago: ${value.estadoPago || 'N/A'} (C$ ${value.precioPactado || 0})`;
+    }
+    
+    // Si es cualquier otro objeto, lo formatea como una lista limpia sin llaves {}
+    return Object.entries(value)
+      .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`)
+      .join('\n');
   }
 
   return String(value);
@@ -178,36 +190,50 @@ function getLogData(log) {
 function getRecordLabel(log) {
   const data = getLogData(log);
 
+  // 1. Si es una habitación
   if (log?.entity_table === "habitaciones") {
-    return data?.numero ? `Habitación ${data.numero}` : log?.entity_id || "—";
+    return data?.numero 
+      ? `Habitación ${data.numero}` 
+      : `Habitación (Ref: ${String(log?.entity_id).substring(0, 6)})`;
   }
 
+  // 2. Si es un cliente
   if (log?.entity_table === "clientes") {
     const fullName = [
       data?.nombre,
       data?.nombres,
       data?.apellido,
       data?.apellidos,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    ].filter(Boolean).join(" ");
 
     if (fullName) return fullName;
-    if (data?.cedula) return `Cliente ${data.cedula}`;
-    return log?.entity_id || "—";
+    if (data?.cedula) return `Cliente con cédula: ${data.cedula}`;
+    return `Cliente (Ref: ${String(log?.entity_id).substring(0, 6)})`;
   }
 
+  // 3. Si es un usuario
   if (log?.entity_table === "profiles") {
-    return data?.email || data?.correo || data?.full_name || log?.entity_id || "—";
+    return data?.email || data?.correo || data?.full_name || "Usuario del sistema";
   }
 
+  // 4. Si es un HOSPEDAJE (Aquí estaba el error que me mandaste)
   if (log?.entity_table === "historial_hospedajes") {
-    return data?.habitacion_numero
-      ? `Hospedaje habitación ${data.habitacion_numero}`
-      : log?.entity_id || "—";
+    if (data?.habitacion_numero) return `Hospedaje en Hab. ${data.habitacion_numero}`;
+    
+    // Si la BD guardó el ID de la habitación y es un número normal (ej. 1, 2, 3)
+    if (data?.habitacion_id && String(data.habitacion_id).length < 5) {
+      return `Hospedaje en Hab. ${data.habitacion_id}`;
+    }
+
+    // Si tenemos la cédula de quien rentó
+    if (data?.cliente_cedula) return `Hospedaje (Cliente: ${data.cliente_cedula})`;
+    
+    // Si nada de lo anterior existe, mostramos un texto limpio en vez del UUID
+    return "Registro de Hospedaje";
   }
 
-  return log?.entity_id || "—";
+  // Para cualquier otra cosa, acortamos el ID para que no rompa el diseño
+  return log?.entity_id ? `Registro #${String(log.entity_id).substring(0, 8)}` : "—";
 }
 
 function getMovementTitle(log) {
@@ -216,11 +242,13 @@ function getMovementTitle(log) {
   const action = getActionLabel(log.action);
   const record = getRecordLabel(log);
 
+  // Mejoramos la gramática. Ej: "Creación de Registro de Hospedaje" 
+  // en vez de "Creación en bf6bd77b-..."
   if (record && record !== "—") {
-    return `${action} en ${record}`;
+    return `${action} - ${record}`;
   }
 
-  return `${action} en ${getTableLabel(log.entity_table)}`;
+  return `${action} en el módulo ${getTableLabel(log.entity_table)}`;
 }
 
 function getChangeSummary(log) {
@@ -230,7 +258,8 @@ function getChangeSummary(log) {
   if (log.action === "DELETE") return "Registro eliminado";
   if (log.action === "LOGIN") return "Usuario inició sesión";
   if (log.action === "LOGOUT") return "Usuario cerró sesión";
-  if (log.action === "VIEW_CLIENT_HISTORY") return "Consultó historial de cliente";
+  if (log.action === "VIEW_CLIENT_HISTORY")
+    return "Consultó historial de cliente";
   if (log.action === "EXPORT_REPORT") return "Exportó un reporte";
 
   const entries = getVisibleChangedEntries(log.changed_fields);
@@ -240,7 +269,7 @@ function getChangeSummary(log) {
   const [field, values] = entries[0];
 
   const summary = `${getFieldLabel(field)}: ${formatDisplayValue(
-    values?.old
+    values?.old,
   )} → ${formatDisplayValue(values?.new)}`;
 
   if (entries.length === 1) return summary;
@@ -499,7 +528,11 @@ export default function AuditLogsPage() {
           />
 
           <div className="audit-filter-actions">
-            <Button type="submit" variant="contained" className="audit-btn-main">
+            <Button
+              type="submit"
+              variant="contained"
+              className="audit-btn-main"
+            >
               Filtrar
             </Button>
 
@@ -636,16 +669,16 @@ export default function AuditLogsPage() {
         fullWidth
       >
         <DialogTitle className="audit-dialog-title">
-          {selectedLog ? getMovementTitle(selectedLog) : "Detalle del movimiento"}
+          {selectedLog
+            ? getMovementTitle(selectedLog)
+            : "Detalle del movimiento"}
         </DialogTitle>
 
         <DialogContent dividers>
           {selectedLog && (
             <Stack spacing={2}>
               <Box>
-                <Typography className="audit-section-title">
-                  Resumen
-                </Typography>
+                <Typography className="audit-section-title">Resumen</Typography>
 
                 <div className="audit-detail-grid">
                   <div>

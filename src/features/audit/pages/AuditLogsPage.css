@@ -2,7 +2,9 @@
   padding: 24px;
   width: 100%;
   min-height: 100%;
-  background: #f6f7fb;
+  /* Usamos fondo transparente para que la imagen de Gohan del AppLayout se luzca */
+  background: transparent; 
+  color: #f8fafc;
 }
 
 .audit-header {
@@ -16,28 +18,28 @@
 .audit-title {
   font-size: clamp(1.5rem, 2vw, 2rem) !important;
   font-weight: 800 !important;
-  color: #172554;
+  color: #f8fafc !important;
   margin-bottom: 4px !important;
 }
 
 .audit-subtitle {
-  color: #64748b;
+  color: #94a3b8;
   font-size: 0.95rem !important;
 }
 
 .audit-total-chip {
-  border-color: #cbd5e1 !important;
-  color: #334155 !important;
-  background: #ffffff !important;
+  border-color: rgba(255,255,255,0.2) !important;
+  color: #f8fafc !important;
+  background: rgba(255,255,255,0.05) !important;
   font-weight: 700 !important;
 }
 
 .audit-filters-card,
 .audit-table-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px !important;
-  background: #ffffff !important;
-  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.06) !important;
+  background: #1e293b !important;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.4) !important;
 }
 
 .audit-filters-card {
@@ -63,22 +65,22 @@
 }
 
 .audit-btn-main {
-  background: #172554 !important;
-  color: #ffffff !important;
+  background: #38bdf8 !important;
+  color: #0f172a !important;
   border-radius: 10px !important;
   text-transform: none !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
   box-shadow: none !important;
 }
 
 .audit-btn-main:hover {
-  background: #1e3a8a !important;
+  background: #0284c7 !important;
 }
 
 .audit-btn-clear,
 .audit-detail-btn {
-  border-color: #cbd5e1 !important;
-  color: #172554 !important;
+  border-color: rgba(255,255,255,0.2) !important;
+  color: #38bdf8 !important;
   border-radius: 10px !important;
   text-transform: none !important;
   font-weight: 700 !important;
@@ -86,13 +88,13 @@
 
 .audit-btn-clear:hover,
 .audit-detail-btn:hover {
-  background: #f1f5f9 !important;
-  border-color: #94a3b8 !important;
+  background: rgba(56, 189, 248, 0.1) !important;
+  border-color: #38bdf8 !important;
 }
 
 .audit-active-filters {
   margin-top: 12px !important;
-  color: #64748b;
+  color: #38bdf8;
   font-size: 0.85rem !important;
   font-weight: 600 !important;
 }
@@ -116,30 +118,30 @@
 }
 
 .audit-table thead th {
-  background: #f8fafc;
-  color: #475569;
+  background: rgba(0,0,0,0.3);
+  color: #94a3b8;
   font-weight: 800;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .audit-table tbody td {
-  color: #334155;
+  color: #cbd5e1;
   font-size: 0.9rem;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   vertical-align: middle;
 }
 
 .audit-table tbody tr:hover {
-  background: #f8fafc;
+  background: rgba(255,255,255,0.03);
 }
 
 .audit-date {
   white-space: nowrap;
   font-weight: 700;
-  color: #334155;
+  color: #f8fafc;
 }
 
 .audit-user-cell {
@@ -150,7 +152,7 @@
 }
 
 .audit-user-cell span {
-  color: #172554;
+  color: #38bdf8;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -168,7 +170,7 @@
 .audit-entity-id {
   display: inline-block;
   max-width: 150px;
-  color: #475569;
+  color: #a855f7;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.82rem;
   overflow: hidden;
@@ -181,50 +183,24 @@
   border-radius: 999px !important;
 }
 
-.audit-chip--insert {
-  background: #dcfce7 !important;
-  color: #166534 !important;
-}
-
-.audit-chip--update {
-  background: #dbeafe !important;
-  color: #1d4ed8 !important;
-}
-
-.audit-chip--delete {
-  background: #fee2e2 !important;
-  color: #b91c1c !important;
-}
-
-.audit-chip--login {
-  background: #ede9fe !important;
-  color: #6d28d9 !important;
-}
-
-.audit-chip--logout {
-  background: #f1f5f9 !important;
-  color: #475569 !important;
-}
-
-.audit-chip--view {
-  background: #fef3c7 !important;
-  color: #92400e !important;
-}
-
-.audit-chip--export {
-  background: #cffafe !important;
-  color: #0e7490 !important;
-}
+/* Colores Neón Translúcidos para las etiquetas de acción */
+.audit-chip--insert { background: rgba(34, 197, 94, 0.15) !important; color: #4ade80 !important; }
+.audit-chip--update { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+.audit-chip--delete { background: rgba(239, 68, 68, 0.15) !important; color: #f87171 !important; }
+.audit-chip--login { background: rgba(168, 85, 247, 0.15) !important; color: #c084fc !important; }
+.audit-chip--logout { background: rgba(148, 163, 184, 0.15) !important; color: #94a3b8 !important; }
+.audit-chip--view { background: rgba(245, 158, 11, 0.15) !important; color: #fbbf24 !important; }
+.audit-chip--export { background: rgba(20, 184, 166, 0.15) !important; color: #2dd4bf !important; }
 
 .audit-role-chip {
-  background: #f8fafc !important;
-  color: #334155 !important;
+  background: rgba(255,255,255,0.1) !important;
+  color: #f8fafc !important;
   font-weight: 700 !important;
 }
 
 .audit-change-count {
-  background: #eef2ff !important;
-  color: #3730a3 !important;
+  background: rgba(99, 102, 241, 0.2) !important;
+  color: #818cf8 !important;
   font-weight: 700 !important;
 }
 
@@ -245,18 +221,18 @@
 .audit-empty-title {
   font-size: 1.1rem !important;
   font-weight: 800 !important;
-  color: #172554;
+  color: #f8fafc !important;
   margin-bottom: 6px !important;
 }
 
 .audit-empty-text {
-  color: #64748b;
+  color: #94a3b8;
   font-size: 0.92rem !important;
 }
 
 .audit-dialog-title {
   font-weight: 800 !important;
-  color: #172554;
+  color: #f8fafc !important;
 }
 
 .audit-detail-grid {
@@ -266,15 +242,15 @@
 }
 
 .audit-detail-grid div {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px;
   padding: 12px;
 }
 
 .audit-detail-grid span {
   display: block;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -284,14 +260,14 @@
 
 .audit-detail-grid p {
   margin: 0;
-  color: #172554;
+  color: #f8fafc;
   font-size: 0.92rem;
   font-weight: 700;
   word-break: break-word;
 }
 
 .audit-section-title {
-  color: #172554;
+  color: #38bdf8 !important;
   font-weight: 800 !important;
   margin-bottom: 12px !important;
 }
@@ -302,18 +278,18 @@
 }
 
 .audit-change-item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px;
   overflow: hidden;
-  background: #ffffff;
+  background: #1e293b;
 }
 
 .audit-change-field {
-  background: #f8fafc;
+  background: rgba(0,0,0,0.3);
   padding: 10px 12px;
   font-weight: 800 !important;
-  color: #172554;
-  border-bottom: 1px solid #e2e8f0;
+  color: #f8fafc !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
 }
 
 .audit-change-values {
@@ -326,12 +302,12 @@
 }
 
 .audit-change-values div:first-child {
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid rgba(255,255,255,0.08);
 }
 
 .audit-change-values span {
   display: block;
-  color: #64748b;
+  color: #38bdf8;
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -340,89 +316,73 @@
 
 .audit-change-values p {
   margin: 0;
-  color: #334155;
+  color: #cbd5e1;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.82rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.audit-json-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+/* =========================================================
+   OVERRIDE DE MATERIAL UI PARA FORZAR MODO OSCURO
+   ========================================================= */
+
+/* Campos de texto y selectores */
+.audit-filters-form .MuiInputBase-root {
+  color: #f8fafc !important;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+}
+.audit-filters-form .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255,255,255,0.1) !important;
+}
+.audit-filters-form .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255,255,255,0.3) !important;
+}
+.audit-filters-form .MuiFormLabel-root {
+  color: #94a3b8 !important;
+}
+.audit-filters-form .MuiSvgIcon-root {
+  color: #94a3b8 !important;
 }
 
-.audit-json-block {
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #0f172a;
+/* Paginación de la tabla */
+.audit-table-card .MuiTablePagination-root,
+.audit-table-card .MuiTablePagination-selectIcon {
+  color: #cbd5e1 !important;
 }
 
-.audit-json-title {
-  padding: 10px 12px;
-  background: #f8fafc;
-  color: #172554;
-  font-weight: 800 !important;
-  border-bottom: 1px solid #e2e8f0;
+/* Modal / Dialog de detalles */
+.MuiDialog-paper {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.MuiDialogContent-dividers {
+  border-color: rgba(255,255,255,0.08) !important;
 }
 
-.audit-json-block pre {
-  margin: 0;
-  padding: 14px;
-  color: #e2e8f0;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  overflow: auto;
-  max-height: 280px;
-}
-
+/* =========================================================
+   RESPONSIVE DESIGN
+   ========================================================= */
 @media (max-width: 1200px) {
   .audit-filters-form {
     grid-template-columns: repeat(3, 1fr);
   }
-
-  .audit-filter-search {
-    grid-column: span 3;
-  }
-
-  .audit-filter-actions {
+  .audit-filter-search, .audit-filter-actions {
     grid-column: span 3;
   }
 }
 
 @media (max-width: 768px) {
-  .audit-page {
-    padding: 16px;
-  }
-
-  .audit-header {
-    flex-direction: column;
-  }
-
-  .audit-filters-form {
-    grid-template-columns: 1fr;
-  }
-
-  .audit-filter-search,
-  .audit-filter-actions {
-    grid-column: auto;
-  }
-
-  .audit-filter-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .audit-detail-grid,
-  .audit-json-grid,
-  .audit-change-values {
-    grid-template-columns: 1fr;
-  }
-
+  .audit-page { padding: 16px; }
+  .audit-header { flex-direction: column; }
+  .audit-filters-form { grid-template-columns: 1fr; }
+  .audit-filter-search, .audit-filter-actions { grid-column: auto; }
+  .audit-filter-actions { flex-direction: column; align-items: stretch; }
+  .audit-detail-grid, .audit-change-values { grid-template-columns: 1fr; }
   .audit-change-values div:first-child {
     border-right: 0;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
   }
 }
